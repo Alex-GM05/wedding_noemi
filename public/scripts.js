@@ -1,8 +1,6 @@
 // Configuración - ¡REEMPLAZA ESTOS VALORES!
-const DRIVE_API = "https://script.google.com/macros/s/.../exec"; // Tu URL de Apps Script
-const API_TOKEN = "BodaNoemiJuanJose2023"; // Token secreto (debe coincidir con backend)
-
-// Variables
+const DRIVE_API = "https://script.google.com/macros/s/AKfycbzGXsmG0nZKEeJ901IPX-H31XC_kWZiEtUN8EoOoZXyWQXmxKWYATFT8TCVtNfdaDF7yw/exec";
+const API_TOKEN = "weddingNJ2025";
 let photos = [];
 let stream = null;
 
