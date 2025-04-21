@@ -1,8 +1,9 @@
 // Configuración - ¡REEMPLAZA ESTOS VALORES!
-const DRIVE_API = "https://script.google.com/macros/s/AKfycbx-XY1WCGMR2gJ_PdYgiRGcxmbfQi_v84xkJFL89cVT5l6DqFuB4LBUk6__F8Y1gIsghw/exec";
+const DRIVE_API = "https://script.google.com/macros/s/AKfycbzmBtt_rPglZN1AARRLwG8ZLK5V93dQ_OfhoWse6WIzMLdQxCeWEJsD0w74Iwml-vj-OA/exec";
 const API_TOKEN = "weddingNJ2025";
 let photos = [];
 let stream = null;
+let refreshInterval;
 
 // Elementos del DOM
 const cameraBtn = document.getElementById('cameraBtn');
@@ -44,66 +45,87 @@ function setupEventListeners() {
     submitUpload.addEventListener('click', uploadPhoto);
 }
 
-// Cargar fotos desde Drive
+// Modificar loadPhotos()
 async function loadPhotos() {
-    try {
-        showLoading(viewPhotosBtn, true);
-        const response = await fetch(`${DRIVE_API}?action=getPhotos&token=${API_TOKEN}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            photos = data.photos;
-            updateGallery();
-        } else {
-            throw new Error(data.message);
-        }
-    } catch (error) {
-        console.error("Error:", error);
-        photos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
-        updateGallery();
-    } finally {
-        showLoading(viewPhotosBtn, false);
+  try {
+    showLoading(viewPhotosBtn, true);
+    const response = await fetch(`${DRIVE_API}?action=getPhotos&token=${API_TOKEN}&nocache=${Date.now()}`);
+    const data = await response.json();
+    
+    if (data.success) {
+      photos = data.photos;
+      updateGallery();
+      startAutoRefresh(); // Iniciar auto-actualización
     }
+  } catch (error) {
+    console.error("Error:", error);
+    photos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
+    updateGallery();
+  } finally {
+    showLoading(viewPhotosBtn, false);
+  }
 }
 
-// Subir foto a Drive
+// Función para auto-actualizar
+function startAutoRefresh() {
+  // Limpiar intervalo anterior
+  if (refreshInterval) clearInterval(refreshInterval);
+  
+  // Actualizar cada 10 segundos
+  refreshInterval = setInterval(() => {
+    if (document.getElementById('gallery').style.display === 'block') {
+      fetch(`${DRIVE_API}?action=getPhotos&token=${API_TOKEN}&nocache=${Date.now()}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && JSON.stringify(data.photos) !== JSON.stringify(photos)) {
+            photos = data.photos;
+            updateGallery();
+          }
+        });
+    }
+  }, 10000); // 10 segundos
+}
+
+// Detener al salir de la galería
+function hideGallery() {
+  gallery.style.display = 'none';
+  mainButtons.style.display = 'flex';
+  if (refreshInterval) clearInterval(refreshInterval);
+}
+
 async function uploadToDrive(imageData) {
     try {
-        showLoading(submitUpload, true);
-        
-        const blob = await (await fetch(imageData)).blob();
-        const formData = new FormData();
-        formData.append('file', blob);
-        
-        const response = await fetch(`${DRIVE_API}?action=upload&token=${API_TOKEN}`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            photos.unshift({ 
-                id: result.fileId, 
-                url: result.url 
-            });
-            updateGallery();
-        } else {
-            throw new Error(result.message);
-        }
+      showLoading(submitUpload, true);
+      
+      const blob = await (await fetch(imageData)).blob();
+      const formData = new FormData();
+      formData.append('file', blob);
+      
+      // Agregar parámetro de cache busting
+      const response = await fetch(`${DRIVE_API}?action=upload&token=${API_TOKEN}&nocache=${Date.now()}`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // Forzar recarga de todas las fotos
+        await loadPhotos();
+      }
     } catch (error) {
-        console.error("Error subiendo:", error);
-        // Fallback a localStorage
-        photos.unshift({ 
-            url: imageData, 
-            id: `local_${Date.now()}` 
-        });
-        localStorage.setItem('weddingPhotos', JSON.stringify(photos));
-        updateGallery();
+      console.error("Error subiendo:", error);
+      // Fallback a localStorage
+      photos.unshift({ 
+        url: imageData, 
+        id: `local_${Date.now()}` 
+      });
+      localStorage.setItem('weddingPhotos', JSON.stringify(photos));
+      updateGallery();
     } finally {
-        showLoading(submitUpload, false);
+      showLoading(submitUpload, false);
     }
-}
+  }
 
 // Función para abrir la cámara (versión mejorada)
 async function openCamera() {
@@ -183,11 +205,6 @@ function closeCamera() {
 function showGallery() {
     mainButtons.style.display = 'none';
     gallery.style.display = 'block';
-}
-
-function hideGallery() {
-    gallery.style.display = 'none';
-    mainButtons.style.display = 'flex';
 }
 
 function updateGallery() {
