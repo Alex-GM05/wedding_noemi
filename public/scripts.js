@@ -73,33 +73,40 @@ async function initApp() {
 
 async function loadPhotos() {
     try {
-        showLoading(viewPhotosBtn, true);
-        const snapshot = await db.collection('weddingPhotos').orderBy('timestamp', 'desc').get();
-        photos = snapshot.docs.map(doc => {
-            return {
-                url: doc.data().url,
-                id: doc.id
-            };
-        });
-        updateGallery();
-    } catch (error) {
-        console.error("Error cargando fotos:", error);
+      showLoading(true);
+      const snapshot = await db.collection('weddingPhotos')
+        .orderBy('timestamp', 'desc')
+        .limit(50) // Limitar para mejor performance
+        .get();
+        
+      if(snapshot.empty) {
         photos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
-        updateGallery();
+      } else {
+        photos = snapshot.docs.map(doc => ({
+          url: doc.data().url,
+          id: doc.id
+        }));
+      }
+      
+      updateGallery();
+    } catch (error) {
+      console.error("Error cargando fotos:", error);
+      photos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
     } finally {
-        showLoading(viewPhotosBtn, false);
+      showLoading(false);
     }
 }
 
-function showLoading(button, loading) {
-    isLoading = loading;
-    if (loading) {
-        button.innerHTML = '<span class="loading"></span> Cargando...';
-        button.disabled = true;
-    } else {
-        button.textContent = 'Revive el momento';
-        button.disabled = false;
-    }
+function showLoading(loading) {
+    const buttons = [submitUpload, captureBtn, viewPhotosBtn];
+    buttons.forEach(btn => {
+      if(btn) {
+        btn.disabled = loading;
+        btn.innerHTML = loading ? 
+          '<span class="loading"></span> Procesando...' : 
+          btn.textContent;
+      }
+    });
 }
 
 async function openCamera() {
@@ -177,40 +184,58 @@ async function uploadPhoto() {
 
 async function savePhoto(imageData) {
     try {
-        // Subir a Firebase Storage
-        const filename = `photos/${currentUser?.uid || 'anonymous'}_${Date.now()}.jpg`;
-        const storageRef = storage.ref(filename);
-        const response = await fetch(imageData);
-        const blob = await response.blob();
-        
-        // Mostrar progreso de carga
-        const uploadTask = storageRef.put(blob);
-        
-        await uploadTask;
-        
-        // Obtener URL pública
-        const url = await storageRef.getDownloadURL();
-        
-        // Guardar referencia en Firestore
-        await db.collection('weddingPhotos').add({
+      showLoading(true);
+      
+      // 1. Convertir a blob
+      const response = await fetch(imageData);
+      const blob = await response.blob();
+      
+      // 2. Crear referencia única
+      const filename = `photos/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
+      const storageRef = storage.ref(filename);
+      
+      // 3. Subir con observable de progreso
+      const uploadTask = storageRef.put(blob);
+      
+      // Escuchar eventos
+      uploadTask.on('state_changed',
+        (snapshot) => {
+          // Opcional: mostrar progreso
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log(`Subiendo: ${progress}%`);
+        },
+        (error) => {
+          console.error("Error de subida:", error);
+          showLoading(false);
+        },
+        async () => {
+          // 4. Obtener URL al completar
+          const url = await uploadTask.snapshot.ref.getDownloadURL();
+          
+          // 5. Guardar en Firestore
+          await db.collection('weddingPhotos').add({
             url: url,
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             userId: currentUser?.uid || 'anonymous'
-        });
-        
-        // Actualizar la galería
-        photos.unshift({ url: url, id: filename });
-        updateGallery();
-        
+          });
+          
+          // 6. Actualizar UI
+          photos.unshift({ url: url, id: filename });
+          updateGallery();
+          showLoading(false);
+        }
+      );
+      
     } catch (error) {
-        console.error("Error subiendo foto:", error);
-        // Fallback a localStorage
-        photos.unshift({ url: imageData, id: `local_${Date.now()}` });
-        localStorage.setItem('weddingPhotos', JSON.stringify(photos));
-        updateGallery();
-        throw error;
+      console.error("Error completo:", error);
+      showLoading(false);
+      // Fallback a localStorage
+      const localId = `local_${Date.now()}`;
+      photos.unshift({ url: imageData, id: localId });
+      localStorage.setItem('weddingPhotos', JSON.stringify(photos));
+      updateGallery();
     }
-}
+  }
 
 function showGallery() {
     if (isLoading) return;
