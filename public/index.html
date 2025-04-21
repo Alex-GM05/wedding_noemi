@@ -25,34 +25,7 @@
         </div>
     </div>
 
-    <!-- Modal para la cámara -->
-    <div id="cameraModal">
-        <span class="close-btn">&times;</span>
-        <div class="modal-content">
-            <h2>Tomar foto</h2>
-            <video id="cameraPreview" autoplay playsinline></video>
-            <button class="btn" id="captureBtn">Capturar Foto</button>
-            <canvas id="photoCanvas" style="display:none;"></canvas>
-        </div>
-    </div>
-
-    <!-- Modal para subir foto -->
-    <div id="uploadModal">
-        <span class="close-btn">&times;</span>
-        <div class="modal-content">
-            <h2>Subir foto desde galería</h2>
-            <label for="fileInput" class="upload-label">Seleccionar Foto</label>
-            <input type="file" id="fileInput" accept="image/*">
-            <img id="uploadPreview" alt="Vista previa">
-            <button class="btn" id="submitUpload" disabled>Subir Foto</button>
-        </div>
-    </div>
-
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <!-- Modales (mantener igual que en solución Firebase) -->
     <script src="scripts.js"></script>
 </body>
 </html>
