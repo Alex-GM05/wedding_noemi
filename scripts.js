@@ -1,194 +1,162 @@
-// Configuración - ¡REEMPLAZA ESTOS VALORES!
-const DRIVE_API = "https://script.google.com/macros/s/AKfycbzmBtt_rPglZN1AARRLwG8ZLK5V93dQ_OfhoWse6WIzMLdQxCeWEJsD0w74Iwml-vj-OA/exec";
+// Configuración
+const DRIVE_API = "https://script.google.com/macros/s/AKfycbz3IRQ8tgF8ijP7Wu9Xyrb4t6alcbSjwyyHpT5ucwuxKHZ9zs9eoN_EQRebvFh2GGAbVA/exec";
 const API_TOKEN = "weddingNJ2025";
+const DRIVE_FOLDER_ID = "1_hfqG2ys36SKUWzoFMP-O6oGD4WkUVfP";
+
 let photos = [];
 let stream = null;
+let lastUpdateTime = 0;
 let refreshInterval;
 
 // Elementos del DOM
-const cameraBtn = document.getElementById('cameraBtn');
-const galleryBtn = document.getElementById('galleryBtn');
-const viewPhotosBtn = document.getElementById('viewPhotosBtn');
-const mainButtons = document.getElementById('mainButtons');
-const gallery = document.getElementById('gallery');
-const backFromGalleryBtn = document.getElementById('backFromGalleryBtn');
-const photoGrid = document.getElementById('photoGrid');
-const cameraModal = document.getElementById('cameraModal');
-const cameraPreview = document.getElementById('cameraPreview');
-const captureBtn = document.getElementById('captureBtn');
-const photoCanvas = document.getElementById('photoCanvas');
-const closeCameraModal = document.querySelector('#cameraModal .close-btn');
-const uploadModal = document.getElementById('uploadModal');
-const fileInput = document.getElementById('fileInput');
-const uploadPreview = document.getElementById('uploadPreview');
-const submitUpload = document.getElementById('submitUpload');
-const closeUploadModal = document.querySelector('#uploadModal .close-btn');
+const elements = {
+    cameraBtn: document.getElementById('cameraBtn'),
+    galleryBtn: document.getElementById('galleryBtn'),
+    viewPhotosBtn: document.getElementById('viewPhotosBtn'),
+    mainButtons: document.getElementById('mainButtons'),
+    gallery: document.getElementById('gallery'),
+    backFromGalleryBtn: document.getElementById('backFromGalleryBtn'),
+    photoGrid: document.getElementById('photoGrid'),
+    cameraModal: document.getElementById('cameraModal'),
+    cameraPreview: document.getElementById('cameraPreview'),
+    captureBtn: document.getElementById('captureBtn'),
+    photoCanvas: document.getElementById('photoCanvas'),
+    uploadModal: document.getElementById('uploadModal'),
+    fileInput: document.getElementById('fileInput'),
+    uploadPreview: document.getElementById('uploadPreview'),
+    submitUpload: document.getElementById('submitUpload')
+};
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', () => {
-    loadPhotos();
     setupEventListeners();
+    loadPhotos();
 });
 
 // Event Listeners
 function setupEventListeners() {
-    cameraBtn.addEventListener('click', openCamera);
-    galleryBtn.addEventListener('click', () => uploadModal.style.display = 'flex');
-    viewPhotosBtn.addEventListener('click', showGallery);
-    backFromGalleryBtn.addEventListener('click', hideGallery);
+    elements.cameraBtn.addEventListener('click', openCamera);
+    elements.galleryBtn.addEventListener('click', () => elements.uploadModal.style.display = 'flex');
+    elements.viewPhotosBtn.addEventListener('click', showGallery);
+    elements.backFromGalleryBtn.addEventListener('click', hideGallery);
     
-    closeCameraModal.addEventListener('click', closeCamera);
-    captureBtn.addEventListener('click', capturePhoto);
+    document.querySelector('#cameraModal .close-btn').addEventListener('click', closeCamera);
+    elements.captureBtn.addEventListener('click', capturePhoto);
     
-    closeUploadModal.addEventListener('click', () => uploadModal.style.display = 'none');
-    fileInput.addEventListener('change', handleFileSelect);
-    submitUpload.addEventListener('click', uploadPhoto);
+    document.querySelector('#uploadModal .close-btn').addEventListener('click', () => elements.uploadModal.style.display = 'none');
+    elements.fileInput.addEventListener('change', handleFileSelect);
+    elements.submitUpload.addEventListener('click', uploadPhoto);
 }
 
-// Modificar loadPhotos()
+// Cargar fotos desde Drive
 async function loadPhotos() {
-  try {
-    showLoading(viewPhotosBtn, true);
-    const response = await fetch(`${DRIVE_API}?action=getPhotos&token=${API_TOKEN}&nocache=${Date.now()}`);
-    const data = await response.json();
+    try {
+        showLoading(elements.viewPhotosBtn, true);
+        const response = await fetch(`${DRIVE_API}?action=getPhotos&token=${API_TOKEN}&folderId=${DRIVE_FOLDER_ID}&lastUpdate=${lastUpdateTime}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            if (data.lastUpdate > lastUpdateTime) {
+                lastUpdateTime = data.lastUpdate;
+                photos = data.photos.map(photo => ({
+                    ...photo,
+                    url: `https://lh3.googleusercontent.com/d/${photo.id}=w1000`
+                }));
+                updateGallery();
+                
+                if (elements.gallery.style.display === 'block') {
+                    showNotification("¡Nuevas fotos disponibles!");
+                }
+            }
+        } else {
+            throw new Error(data.message || "Error al cargar fotos");
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        photos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
+        updateGallery();
+    } finally {
+        showLoading(elements.viewPhotosBtn, false);
+    }
+}
+
+// Función para mostrar notificaciones
+function showNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.textContent = message;
+    document.body.appendChild(notification);
     
-    if (data.success) {
-      photos = data.photos;
-      updateGallery();
-      startAutoRefresh(); // Iniciar auto-actualización
-    }
-  } catch (error) {
-    console.error("Error:", error);
-    photos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
-    updateGallery();
-  } finally {
-    showLoading(viewPhotosBtn, false);
-  }
+    setTimeout(() => {
+        notification.classList.add('fade-out');
+        setTimeout(() => notification.remove(), 500);
+    }, 3000);
 }
 
-// Función para auto-actualizar
-function startAutoRefresh() {
-  // Limpiar intervalo anterior
-  if (refreshInterval) clearInterval(refreshInterval);
-  
-  // Actualizar cada 10 segundos
-  refreshInterval = setInterval(() => {
-    if (document.getElementById('gallery').style.display === 'block') {
-      fetch(`${DRIVE_API}?action=getPhotos&token=${API_TOKEN}&nocache=${Date.now()}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.success && JSON.stringify(data.photos) !== JSON.stringify(photos)) {
-            photos = data.photos;
-            updateGallery();
-          }
-        });
-    }
-  }, 10000); // 10 segundos
-}
-
-// Detener al salir de la galería
-function hideGallery() {
-  gallery.style.display = 'none';
-  mainButtons.style.display = 'flex';
-  if (refreshInterval) clearInterval(refreshInterval);
-}
-
+// Subir foto a Drive
 async function uploadToDrive(imageData) {
     try {
-      showLoading(submitUpload, true);
-      
-      const blob = await (await fetch(imageData)).blob();
-      const formData = new FormData();
-      formData.append('file', blob);
-      
-      // Agregar parámetro de cache busting
-      const response = await fetch(`${DRIVE_API}?action=upload&token=${API_TOKEN}&nocache=${Date.now()}`, {
-        method: 'POST',
-        body: formData
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        // Forzar recarga de todas las fotos
-        await loadPhotos();
-      }
+        showLoading(elements.submitUpload, true);
+        
+        const blob = await (await fetch(imageData)).blob();
+        const formData = new FormData();
+        formData.append('file', blob);
+        formData.append('folderId', DRIVE_FOLDER_ID);
+        
+        const response = await fetch(`${DRIVE_API}?action=upload&token=${API_TOKEN}`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            await loadPhotos(); // Recargar la lista completa
+        } else {
+            throw new Error(result.message || "Error al subir la foto");
+        }
     } catch (error) {
-      console.error("Error subiendo:", error);
-      // Fallback a localStorage
-      photos.unshift({ 
-        url: imageData, 
-        id: `local_${Date.now()}` 
-      });
-      localStorage.setItem('weddingPhotos', JSON.stringify(photos));
-      updateGallery();
+        console.error("Error subiendo:", error);
+        // Fallback a localStorage
+        photos.unshift({ 
+            url: imageData, 
+            id: `local_${Date.now()}` 
+        });
+        localStorage.setItem('weddingPhotos', JSON.stringify(photos));
+        updateGallery();
+        alert("Se guardó localmente. Error al subir a Drive: " + error.message);
     } finally {
-      showLoading(submitUpload, false);
+        showLoading(elements.submitUpload, false);
     }
-  }
+}
 
-// Función para abrir la cámara (versión mejorada)
+// Funciones de la cámara
 async function openCamera() {
     try {
-        cameraModal.style.display = 'flex';
+        elements.cameraModal.style.display = 'flex';
         
-        // Detener cualquier stream previo
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
         }
         
-        // Configuración optimizada para móviles
-        const constraints = {
-            video: {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
                 facingMode: 'environment',
                 width: { ideal: 1280 },
                 height: { ideal: 720 }
             },
-            audio: false
-        };
+            audio: false 
+        });
         
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        cameraPreview.srcObject = stream;
+        elements.cameraPreview.srcObject = stream;
         
-        // Esperar a que el video esté listo
         await new Promise((resolve) => {
-            cameraPreview.onloadedmetadata = resolve;
+            elements.cameraPreview.onloadedmetadata = resolve;
         });
         
     } catch (err) {
-        console.error("Error en cámara:", err);
+        console.error("Error al acceder a la cámara:", err);
         alert(`Error al acceder a la cámara: ${err.message}`);
-        closeCamera();
-        
-        // Fallback para dispositivos iOS
-        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-            alert("En iOS, asegúrate de usar Safari y haber dado permisos de cámara.");
-        }
-    }
-}
-
-// Función para capturar foto (versión mejorada)
-function capturePhoto() {
-    try {
-        if (!stream) throw new Error("No hay señal de cámara");
-        
-        const context = photoCanvas.getContext('2d');
-        photoCanvas.width = cameraPreview.videoWidth;
-        photoCanvas.height = cameraPreview.videoHeight;
-        
-        // Espejo horizontal para vista más natural
-        context.translate(photoCanvas.width, 0);
-        context.scale(-1, 1);
-        context.drawImage(cameraPreview, 0, 0, photoCanvas.width, photoCanvas.height);
-        
-        // Convertir a JPG con calidad del 85%
-        const imageData = photoCanvas.toDataURL('image/jpeg', 0.85);
-        uploadToDrive(imageData);
-        
-    } catch (error) {
-        console.error("Error al capturar:", error);
-        alert("Error al tomar la foto: " + error.message);
-    } finally {
         closeCamera();
     }
 }
@@ -198,49 +166,99 @@ function closeCamera() {
         stream.getTracks().forEach(track => track.stop());
         stream = null;
     }
-    cameraModal.style.display = 'none';
+    elements.cameraModal.style.display = 'none';
+}
+
+function capturePhoto() {
+    try {
+        const context = elements.photoCanvas.getContext('2d');
+        elements.photoCanvas.width = elements.cameraPreview.videoWidth;
+        elements.photoCanvas.height = elements.cameraPreview.videoHeight;
+        
+        context.translate(elements.photoCanvas.width, 0);
+        context.scale(-1, 1);
+        context.drawImage(elements.cameraPreview, 0, 0, elements.photoCanvas.width, elements.photoCanvas.height);
+        
+        const imageData = elements.photoCanvas.toDataURL('image/jpeg', 0.85);
+        uploadToDrive(imageData);
+        
+    } catch (error) {
+        console.error("Error al capturar foto:", error);
+        alert("Error al tomar la foto: " + error.message);
+    } finally {
+        closeCamera();
+    }
 }
 
 // Galería
 function showGallery() {
-    mainButtons.style.display = 'none';
-    gallery.style.display = 'block';
+    elements.mainButtons.style.display = 'none';
+    elements.gallery.style.display = 'block';
+    startAutoRefresh();
+}
+
+function hideGallery() {
+    elements.gallery.style.display = 'none';
+    elements.mainButtons.style.display = 'flex';
+    stopAutoRefresh();
 }
 
 function updateGallery() {
-    photoGrid.innerHTML = '';
+    elements.photoGrid.innerHTML = '';
     
     if (photos.length === 0) {
-        photoGrid.innerHTML = '<p class="no-photos">¡Sé el primero en subir una foto!</p>';
+        elements.photoGrid.innerHTML = '<p class="no-photos">¡Sé el primero en subir una foto!</p>';
         return;
     }
     
     photos.forEach(photo => {
         const photoItem = document.createElement('div');
         photoItem.className = 'photo-item';
-        photoItem.innerHTML = `
-            <img src="${photo.url}" loading="lazy" alt="Foto de la boda">
-            <button class="download-btn" onclick="downloadPhoto('${photo.url}', 'boda_${photo.id}.jpg')">
-                ↓
-            </button>
-        `;
-        photoGrid.appendChild(photoItem);
+        
+        const img = document.createElement('img');
+        img.src = photo.url;
+        img.alt = 'Foto de la boda';
+        img.loading = 'lazy';
+        img.onerror = () => {
+            img.src = 'https://via.placeholder.com/200x200?text=Error+al+cargar';
+        };
+        
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'download-btn';
+        downloadBtn.innerHTML = '↓';
+        downloadBtn.title = 'Descargar foto';
+        downloadBtn.addEventListener('click', () => downloadPhoto(photo.url, `boda_${photo.id}.jpg`));
+        
+        photoItem.appendChild(img);
+        photoItem.appendChild(downloadBtn);
+        elements.photoGrid.appendChild(photoItem);
     });
 }
 
-// Función mejorada para selección de archivos
+// Auto-refresco
+function startAutoRefresh() {
+    stopAutoRefresh();
+    refreshInterval = setInterval(loadPhotos, 10000); // Actualizar cada 10 segundos
+}
+
+function stopAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+    }
+}
+
+// Subida de archivos
 function handleFileSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
     
-    // Validar tipo de archivo
     const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
         alert("Por favor, selecciona una imagen (JPEG, PNG o WEBP)");
         return;
     }
     
-    // Validar tamaño (máximo 5MB)
     if (file.size > 5 * 1024 * 1024) {
         alert("La imagen es muy grande (máximo 5MB)");
         return;
@@ -249,135 +267,38 @@ function handleFileSelect(event) {
     const reader = new FileReader();
     
     reader.onloadstart = () => {
-        submitUpload.disabled = true;
-        uploadPreview.style.display = 'none';
+        elements.submitUpload.disabled = true;
+        elements.uploadPreview.style.display = 'none';
     };
     
     reader.onload = (e) => {
-        uploadPreview.src = e.target.result;
-        uploadPreview.style.display = 'block';
-        submitUpload.disabled = false;
+        elements.uploadPreview.src = e.target.result;
+        elements.uploadPreview.style.display = 'block';
+        elements.submitUpload.disabled = false;
     };
     
     reader.onerror = () => {
         alert("Error al leer el archivo");
-        submitUpload.disabled = true;
+        elements.submitUpload.disabled = true;
     };
     
     reader.readAsDataURL(file);
 }
 
-// Función mejorada para subir foto
 async function uploadPhoto() {
-    if (!uploadPreview.src || submitUpload.disabled) return;
+    if (!elements.uploadPreview.src || elements.submitUpload.disabled) return;
     
     try {
-        showLoading(submitUpload, true);
-        
-        // Optimizar imagen antes de subir
-        const optimizedImage = await optimizeImage(uploadPreview.src);
-        await uploadToDrive(optimizedImage);
-        
-        // Resetear el formulario
-        fileInput.value = '';
-        uploadPreview.src = '';
-        uploadPreview.style.display = 'none';
-        submitUpload.disabled = true;
-        uploadModal.style.display = 'none';
-        
+        await uploadToDrive(elements.uploadPreview.src);
+        elements.uploadModal.style.display = 'none';
+        elements.uploadPreview.src = '';
+        elements.uploadPreview.style.display = 'none';
+        elements.submitUpload.disabled = true;
+        elements.fileInput.value = '';
     } catch (error) {
-        console.error("Error al subir:", error);
+        console.error("Error al subir foto:", error);
         alert("Error al subir la foto: " + error.message);
-    } finally {
-        showLoading(submitUpload, false);
     }
-}
-
-// Nueva función para optimizar imágenes
-async function optimizeImage(dataUrl) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.src = dataUrl;
-        
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            // Tamaño máximo de 1000px en el lado más largo
-            const MAX_DIMENSION = 1000;
-            let width = img.width;
-            let height = img.height;
-            
-            if (width > height) {
-                if (width > MAX_DIMENSION) {
-                    height *= MAX_DIMENSION / width;
-                    width = MAX_DIMENSION;
-                }
-            } else {
-                if (height > MAX_DIMENSION) {
-                    width *= MAX_DIMENSION / height;
-                    height = MAX_DIMENSION;
-                }
-            }
-            
-            canvas.width = width;
-            canvas.height = height;
-            ctx.drawImage(img, 0, 0, width, height);
-            
-            // Convertir a JPG con calidad del 80%
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
-        };
-        
-        img.onerror = () => resolve(dataUrl); // Fallback si hay error
-    });
-}
-
-// Helper para comprimir imágenes
-async function compressImage(blob, quality = 0.8) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.src = URL.createObjectURL(blob);
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            // Tamaño máximo 1000px en el lado más largo
-            const MAX_SIZE = 1000;
-            let width = img.width;
-            let height = img.height;
-            
-            if (width > height && width > MAX_SIZE) {
-                height *= MAX_SIZE / width;
-                width = MAX_SIZE;
-            } else if (height > MAX_SIZE) {
-                width *= MAX_SIZE / height;
-                height = MAX_SIZE;
-            }
-            
-            canvas.width = width;
-            canvas.height = height;
-            ctx.drawImage(img, 0, 0, width, height);
-            
-            canvas.toBlob((compressedBlob) => {
-                resolve(compressedBlob || blob);
-            }, 'image/jpeg', quality);
-        };
-    });
-}
-
-// Helper para convertir DataURL a Blob
-function dataURLToBlob(dataURL) {
-    const arr = dataURL.split(',');
-    const mime = arr[0].match(/:(.*?);/)[1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    
-    while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-    }
-    
-    return new Blob([u8arr], { type: mime });
 }
 
 // Utilidades
@@ -387,7 +308,7 @@ function showLoading(button, isLoading) {
     if (isLoading) {
         button.innerHTML = '<span class="loading"></span> Procesando...';
     } else {
-        button.textContent = button.dataset.originalText;
+        button.textContent = button.dataset.originalText || button.textContent;
     }
 }
 

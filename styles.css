@@ -252,6 +252,35 @@ h2 {
     to { transform: rotate(360deg); }
 }
 
+/* Notificaciones */
+.notification {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #9e6b55;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 50px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    z-index: 2000;
+    animation: fade-in 0.3s ease-out;
+}
+
+.notification.fade-out {
+    animation: fade-out 0.5s ease-in;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; bottom: 0; }
+    to { opacity: 1; bottom: 20px; }
+}
+
+@keyframes fade-out {
+    from { opacity: 1; bottom: 20px; }
+    to { opacity: 0; bottom: 0; }
+}
+
 /* Responsive */
 @media (max-width: 600px) {
     h1 {
