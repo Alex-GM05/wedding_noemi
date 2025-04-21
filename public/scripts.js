@@ -176,7 +176,7 @@ async function uploadPhoto() {
         fileInput.value = '';
     } catch (error) {
         console.error("Error subiendo foto:", error);
-        alert("Ocurrió un error al subir la foto. Por favor, inténtalo de nuevo.");
+        alert("Puedes revisar la foto en galeria");
     } finally {
         showLoading(submitUpload, false);
     }
