@@ -210,6 +210,23 @@ h2 {
     animation: spin 1s ease-in-out infinite;
 }
 
+.no-photos {
+    color: #9e6b55;
+    font-style: italic;
+    padding: 20px;
+  }
+  
+  .uploader {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+  }
+
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
