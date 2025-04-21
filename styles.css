@@ -1,3 +1,4 @@
+/* Estilos generales */
 body {
     font-family: 'Playfair Display', serif;
     background-color: #f9f3f0;
@@ -40,6 +41,7 @@ h2 {
     color: #b88b7d;
 }
 
+/* Botones principales */
 .buttons-container {
     display: flex;
     flex-direction: column;
@@ -70,6 +72,12 @@ h2 {
     transform: translateY(1px);
 }
 
+.back-btn {
+    margin-top: 20px;
+    background-color: #9e6b55;
+}
+
+/* Galería de fotos */
 #gallery {
     display: none;
     margin-top: 30px;
@@ -123,12 +131,14 @@ h2 {
     opacity: 1;
 }
 
-.back-btn {
-    margin-top: 20px;
-    background-color: #9e6b55;
+.no-photos {
+    color: #9e6b55;
+    font-style: italic;
+    padding: 20px;
 }
 
-#cameraModal, #uploadModal {
+/* Modales */
+.modal {
     display: none;
     position: fixed;
     top: 0;
@@ -143,63 +153,89 @@ h2 {
 
 .modal-content {
     background-color: white;
-    padding: 20px;
+    padding: 25px;
     border-radius: 10px;
     width: 90%;
     max-width: 500px;
     text-align: center;
+    position: relative;
 }
 
 .close-btn {
     position: absolute;
-    top: 20px;
-    right: 20px;
-    color: white;
-    font-size: 30px;
+    top: 15px;
+    right: 15px;
+    color: #5a4a42;
+    font-size: 28px;
     cursor: pointer;
+    transition: color 0.3s;
+}
+
+.close-btn:hover {
+    color: #9e6b55;
+}
+
+/* Estilos específicos para la cámara */
+.camera-container {
+    width: 100%;
+    max-height: 400px;
+    margin: 20px 0;
+    overflow: hidden;
+    border-radius: 8px;
+    background-color: #eee;
 }
 
 #cameraPreview {
     width: 100%;
     max-height: 400px;
-    background-color: #eee;
-    margin-bottom: 20px;
-}
-
-#captureBtn {
-    background-color: #9e6b55;
-    margin-top: 10px;
-}
-
-#fileInput {
-    display: none;
-}
-
-.upload-label {
     display: block;
+}
+
+.capture-btn {
     background-color: #9e6b55;
+    margin-top: 15px;
+    width: 100%;
+}
+
+/* Estilos para la subida de archivos */
+.upload-label {
+    display: inline-block;
+    background-color: #d4a59a;
     color: white;
-    padding: 15px;
-    border-radius: 5px;
+    padding: 12px 24px;
+    border-radius: 50px;
     cursor: pointer;
-    margin-bottom: 20px;
+    transition: all 0.3s;
+    margin: 15px 0;
+    font-size: 1.1rem;
 }
 
 .upload-label:hover {
     background-color: #b88b7d;
+    transform: translateY(-2px);
+}
+
+.preview-container {
+    width: 100%;
+    max-height: 300px;
+    margin: 15px 0;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px;
+    border: 2px dashed #d4a59a;
+    background-color: #f9f3f0;
 }
 
 #uploadPreview {
     max-width: 100%;
     max-height: 300px;
     display: none;
-    margin: 0 auto 20px;
+    border-radius: 8px;
 }
 
-#submitUpload {
-    background-color: #9e6b55;
-}
-
+/* Loading spinner */
 .loading {
     display: inline-block;
     width: 20px;
@@ -208,25 +244,29 @@ h2 {
     border-radius: 50%;
     border-top-color: white;
     animation: spin 1s ease-in-out infinite;
+    margin-right: 10px;
+    vertical-align: middle;
 }
-
-.no-photos {
-    color: #9e6b55;
-    font-style: italic;
-    padding: 20px;
-  }
-  
-  .uploader {
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
-    background: rgba(0,0,0,0.5);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.8rem;
-  }
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    h1 {
+        font-size: 2.5rem;
+    }
+    
+    h2 {
+        font-size: 2rem;
+    }
+    
+    .overlay {
+        padding: 20px;
+    }
+    
+    .photo-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
 }

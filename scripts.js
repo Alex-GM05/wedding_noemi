@@ -105,21 +105,25 @@ async function uploadToDrive(imageData) {
     }
 }
 
-// Funciones de la cámara
-function openCamera() {
-    cameraModal.style.display = 'flex';
-    navigator.mediaDevices.getUserMedia({ video: true })
-        .then(s => {
-            stream = s;
-            cameraPreview.srcObject = stream;
-        })
-        .catch(err => {
-            console.error("Error en cámara:", err);
-            alert("No se pudo acceder a la cámara");
-            closeCamera();
+// Función para abrir la cámara (actualizada)
+async function openCamera() {
+    try {
+        cameraModal.style.display = 'flex';
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: 'environment',
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: false 
         });
+        cameraPreview.srcObject = stream;
+    } catch (err) {
+        console.error("Error al acceder a la cámara:", err);
+        alert("No se pudo acceder a la cámara. Asegúrate de haber dado los permisos necesarios.");
+        closeCamera();
+    }
 }
-
 function closeCamera() {
     if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -128,14 +132,25 @@ function closeCamera() {
     cameraModal.style.display = 'none';
 }
 
+// Función para capturar foto (actualizada)
 function capturePhoto() {
-    const context = photoCanvas.getContext('2d');
-    photoCanvas.width = cameraPreview.videoWidth;
-    photoCanvas.height = cameraPreview.videoHeight;
-    context.drawImage(cameraPreview, 0, 0, photoCanvas.width, photoCanvas.height);
-    const imageData = photoCanvas.toDataURL('image/jpeg', 0.8);
-    uploadToDrive(imageData);
-    closeCamera();
+    try {
+        const context = photoCanvas.getContext('2d');
+        photoCanvas.width = cameraPreview.videoWidth;
+        photoCanvas.height = cameraPreview.videoHeight;
+        
+        // Voltea la imagen para que coincida con la vista previa
+        context.translate(photoCanvas.width, 0);
+        context.scale(-1, 1);
+        context.drawImage(cameraPreview, 0, 0, photoCanvas.width, photoCanvas.height);
+        
+        const imageData = photoCanvas.toDataURL('image/jpeg', 0.85);
+        savePhoto(imageData);
+        closeCamera();
+    } catch (error) {
+        console.error("Error al capturar foto:", error);
+        alert("Error al tomar la foto. Intenta nuevamente.");
+    }
 }
 
 // Galería
@@ -170,28 +185,101 @@ function updateGallery() {
     });
 }
 
-// Subida de archivos
+// Función para manejar la selección de archivos (actualizada)
 function handleFileSelect(event) {
     const file = event.target.files[0];
-    if (!file || !file.type.match('image.*')) return;
-    
+    if (!file || !file.type.match('image.*')) {
+        alert("Por favor, selecciona un archivo de imagen válido (JPEG, PNG)");
+        return;
+    }
+
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = function(e) {
         uploadPreview.src = e.target.result;
         uploadPreview.style.display = 'block';
         submitUpload.disabled = false;
+        
+        // Ajustar tamaño si es muy grande
+        if (file.size > 2 * 1024 * 1024) { // 2MB
+            alert("La imagen es muy grande. Se comprimirá automáticamente.");
+        }
     };
     reader.readAsDataURL(file);
 }
 
+// Función para subir foto (actualizada)
 async function uploadPhoto() {
     if (!uploadPreview.src || submitUpload.disabled) return;
-    await uploadToDrive(uploadPreview.src);
-    uploadModal.style.display = 'none';
-    uploadPreview.src = '';
-    uploadPreview.style.display = 'none';
-    submitUpload.disabled = true;
-    fileInput.value = '';
+
+    try {
+        showLoading(submitUpload, true);
+        
+        // Crear blob optimizado
+        const blob = await dataURLToBlob(uploadPreview.src);
+        const optimizedBlob = await compressImage(blob);
+        
+        await savePhoto(uploadPreview.src);
+        
+        // Resetear formulario
+        uploadModal.style.display = 'none';
+        uploadPreview.src = '';
+        uploadPreview.style.display = 'none';
+        submitUpload.disabled = true;
+        fileInput.value = '';
+    } catch (error) {
+        console.error("Error al subir foto:", error);
+        alert("Error al subir la foto. Intenta con una imagen más pequeña.");
+    } finally {
+        showLoading(submitUpload, false);
+    }
+}
+
+// Helper para comprimir imágenes
+async function compressImage(blob, quality = 0.8) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(blob);
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Tamaño máximo 1000px en el lado más largo
+            const MAX_SIZE = 1000;
+            let width = img.width;
+            let height = img.height;
+            
+            if (width > height && width > MAX_SIZE) {
+                height *= MAX_SIZE / width;
+                width = MAX_SIZE;
+            } else if (height > MAX_SIZE) {
+                width *= MAX_SIZE / height;
+                height = MAX_SIZE;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            canvas.toBlob((compressedBlob) => {
+                resolve(compressedBlob || blob);
+            }, 'image/jpeg', quality);
+        };
+    });
+}
+
+// Helper para convertir DataURL a Blob
+function dataURLToBlob(dataURL) {
+    const arr = dataURL.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    
+    return new Blob([u8arr], { type: mime });
 }
 
 // Utilidades
