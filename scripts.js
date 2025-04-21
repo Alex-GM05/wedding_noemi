@@ -105,52 +105,78 @@ async function uploadToDrive(imageData) {
     }
 }
 
-// Función para abrir la cámara (actualizada)
+// Función para abrir la cámara (versión mejorada)
 async function openCamera() {
     try {
         cameraModal.style.display = 'flex';
-        stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
+        
+        // Detener cualquier stream previo
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        
+        // Configuración optimizada para móviles
+        const constraints = {
+            video: {
                 facingMode: 'environment',
                 width: { ideal: 1280 },
                 height: { ideal: 720 }
             },
-            audio: false 
-        });
+            audio: false
+        };
+        
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
         cameraPreview.srcObject = stream;
+        
+        // Esperar a que el video esté listo
+        await new Promise((resolve) => {
+            cameraPreview.onloadedmetadata = resolve;
+        });
+        
     } catch (err) {
-        console.error("Error al acceder a la cámara:", err);
-        alert("No se pudo acceder a la cámara. Asegúrate de haber dado los permisos necesarios.");
+        console.error("Error en cámara:", err);
+        alert(`Error al acceder a la cámara: ${err.message}`);
+        closeCamera();
+        
+        // Fallback para dispositivos iOS
+        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+            alert("En iOS, asegúrate de usar Safari y haber dado permisos de cámara.");
+        }
+    }
+}
+
+// Función para capturar foto (versión mejorada)
+function capturePhoto() {
+    try {
+        if (!stream) throw new Error("No hay señal de cámara");
+        
+        const context = photoCanvas.getContext('2d');
+        photoCanvas.width = cameraPreview.videoWidth;
+        photoCanvas.height = cameraPreview.videoHeight;
+        
+        // Espejo horizontal para vista más natural
+        context.translate(photoCanvas.width, 0);
+        context.scale(-1, 1);
+        context.drawImage(cameraPreview, 0, 0, photoCanvas.width, photoCanvas.height);
+        
+        // Convertir a JPG con calidad del 85%
+        const imageData = photoCanvas.toDataURL('image/jpeg', 0.85);
+        uploadToDrive(imageData);
+        
+    } catch (error) {
+        console.error("Error al capturar:", error);
+        alert("Error al tomar la foto: " + error.message);
+    } finally {
         closeCamera();
     }
 }
+
 function closeCamera() {
     if (stream) {
         stream.getTracks().forEach(track => track.stop());
         stream = null;
     }
     cameraModal.style.display = 'none';
-}
-
-// Función para capturar foto (actualizada)
-function capturePhoto() {
-    try {
-        const context = photoCanvas.getContext('2d');
-        photoCanvas.width = cameraPreview.videoWidth;
-        photoCanvas.height = cameraPreview.videoHeight;
-        
-        // Voltea la imagen para que coincida con la vista previa
-        context.translate(photoCanvas.width, 0);
-        context.scale(-1, 1);
-        context.drawImage(cameraPreview, 0, 0, photoCanvas.width, photoCanvas.height);
-        
-        const imageData = photoCanvas.toDataURL('image/jpeg', 0.85);
-        savePhoto(imageData);
-        closeCamera();
-    } catch (error) {
-        console.error("Error al capturar foto:", error);
-        alert("Error al tomar la foto. Intenta nuevamente.");
-    }
 }
 
 // Galería
@@ -185,53 +211,108 @@ function updateGallery() {
     });
 }
 
-// Función para manejar la selección de archivos (actualizada)
+// Función mejorada para selección de archivos
 function handleFileSelect(event) {
     const file = event.target.files[0];
-    if (!file || !file.type.match('image.*')) {
-        alert("Por favor, selecciona un archivo de imagen válido (JPEG, PNG)");
+    if (!file) return;
+    
+    // Validar tipo de archivo
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+        alert("Por favor, selecciona una imagen (JPEG, PNG o WEBP)");
         return;
     }
-
+    
+    // Validar tamaño (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        alert("La imagen es muy grande (máximo 5MB)");
+        return;
+    }
+    
     const reader = new FileReader();
-    reader.onload = function(e) {
+    
+    reader.onloadstart = () => {
+        submitUpload.disabled = true;
+        uploadPreview.style.display = 'none';
+    };
+    
+    reader.onload = (e) => {
         uploadPreview.src = e.target.result;
         uploadPreview.style.display = 'block';
         submitUpload.disabled = false;
-        
-        // Ajustar tamaño si es muy grande
-        if (file.size > 2 * 1024 * 1024) { // 2MB
-            alert("La imagen es muy grande. Se comprimirá automáticamente.");
-        }
     };
+    
+    reader.onerror = () => {
+        alert("Error al leer el archivo");
+        submitUpload.disabled = true;
+    };
+    
     reader.readAsDataURL(file);
 }
 
-// Función para subir foto (actualizada)
+// Función mejorada para subir foto
 async function uploadPhoto() {
     if (!uploadPreview.src || submitUpload.disabled) return;
-
+    
     try {
         showLoading(submitUpload, true);
         
-        // Crear blob optimizado
-        const blob = await dataURLToBlob(uploadPreview.src);
-        const optimizedBlob = await compressImage(blob);
+        // Optimizar imagen antes de subir
+        const optimizedImage = await optimizeImage(uploadPreview.src);
+        await uploadToDrive(optimizedImage);
         
-        await savePhoto(uploadPreview.src);
-        
-        // Resetear formulario
-        uploadModal.style.display = 'none';
+        // Resetear el formulario
+        fileInput.value = '';
         uploadPreview.src = '';
         uploadPreview.style.display = 'none';
         submitUpload.disabled = true;
-        fileInput.value = '';
+        uploadModal.style.display = 'none';
+        
     } catch (error) {
-        console.error("Error al subir foto:", error);
-        alert("Error al subir la foto. Intenta con una imagen más pequeña.");
+        console.error("Error al subir:", error);
+        alert("Error al subir la foto: " + error.message);
     } finally {
         showLoading(submitUpload, false);
     }
+}
+
+// Nueva función para optimizar imágenes
+async function optimizeImage(dataUrl) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.src = dataUrl;
+        
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Tamaño máximo de 1000px en el lado más largo
+            const MAX_DIMENSION = 1000;
+            let width = img.width;
+            let height = img.height;
+            
+            if (width > height) {
+                if (width > MAX_DIMENSION) {
+                    height *= MAX_DIMENSION / width;
+                    width = MAX_DIMENSION;
+                }
+            } else {
+                if (height > MAX_DIMENSION) {
+                    width *= MAX_DIMENSION / height;
+                    height = MAX_DIMENSION;
+                }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Convertir a JPG con calidad del 80%
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        
+        img.onerror = () => resolve(dataUrl); // Fallback si hay error
+    });
 }
 
 // Helper para comprimir imágenes
