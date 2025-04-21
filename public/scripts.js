@@ -1,5 +1,5 @@
 // Configuración - ¡REEMPLAZA ESTOS VALORES!
-const DRIVE_API = "https://script.google.com/macros/s/AKfycbzGXsmG0nZKEeJ901IPX-H31XC_kWZiEtUN8EoOoZXyWQXmxKWYATFT8TCVtNfdaDF7yw/exec";
+const DRIVE_API = "https://script.google.com/macros/s/AKfycbx-XY1WCGMR2gJ_PdYgiRGcxmbfQi_v84xkJFL89cVT5l6DqFuB4LBUk6__F8Y1gIsghw/exec";
 const API_TOKEN = "weddingNJ2025";
 let photos = [];
 let stream = null;
