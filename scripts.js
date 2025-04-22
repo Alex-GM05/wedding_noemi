@@ -1,8 +1,8 @@
 // Configuración GitHub
-const GITHUB_USERNAME = 'Alex-GM05'; // Reemplaza con tu usuario de GitHub
-const GITHUB_REPO = 'wedding_noemi'; // Reemplaza con tu repositorio
-const GITHUB_FOLDER = 'wedding images'; // Carpeta donde se guardarán las imágenes
-const GITHUB_API = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+const GITHUB_USERNAME = 'Alex-GM05';
+const GITHUB_REPO = 'wedding_noemi';
+const GITHUB_FOLDER = 'wedding images';
+const GITHUB_API = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${encodeURIComponent(GITHUB_FOLDER)}`;
 const GITHUB_TOKEN = 'WEDDING_TOKEN'; // Usará el secret WEDDING_TOKEN
 
 let photos = [];
@@ -61,13 +61,21 @@ async function loadPhotos() {
             }
         });
         
-        if (!response.ok) throw new Error("Error al cargar fotos desde GitHub");
+        if (!response.ok) {
+            // Si la carpeta no existe aún, crear un array vacío
+            if (response.status === 404) {
+                photos = [];
+                updateGallery();
+                return;
+            }
+            throw new Error(`Error HTTP: ${response.status}`);
+        }
         
         const files = await response.json();
         
         // Filtrar solo archivos de imagen
         photos = files
-            .filter(file => file.type === "file" && file.name.match(/\.(jpg|jpeg|png|webp)$/i))
+            .filter(file => file.type === "file" && /\.(jpg|jpeg|png|webp)$/i.test(file.name))
             .map(file => ({
                 id: file.sha,
                 url: file.download_url,
@@ -79,9 +87,14 @@ async function loadPhotos() {
         
     } catch (error) {
         console.error("Error cargando fotos:", error);
-        photos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
+        // Cargar desde localStorage si hay error
+        const localPhotos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
+        photos = localPhotos.filter(photo => !photo.id.startsWith('local_'));
         updateGallery();
-        showNotification("Error al cargar fotos. Mostrando copias locales.");
+        
+        if (navigator.onLine) {
+            showNotification("Error al cargar fotos desde GitHub");
+        }
     } finally {
         showLoading(elements.viewPhotosBtn, false);
     }
@@ -90,45 +103,39 @@ async function loadPhotos() {
 // Subir foto a GitHub
 async function uploadToGitHub(imageData, fileName) {
     try {
+        // Verificar conexión
+        if (!navigator.onLine) {
+            throw new Error("No hay conexión a internet");
+        }
+        
         // Convertir data URL a Blob
-        const blob = await (await fetch(imageData)).blob();
+        const blob = await fetch(imageData).then(res => res.blob());
         
-        // Optimizar imagen antes de subir
+        // Optimizar imagen
         const optimizedBlob = await compressImage(blob);
-        
-        // Leer como base64
         const base64data = await blobToBase64(optimizedBlob);
+        const content = base64data.split(',')[1]; // Remover el prefijo
         
         // Configurar el commit
         const commitMessage = `Añadir foto de boda: ${fileName}`;
-        const content = base64data.split(',')[1]; // Remover el prefijo data:image/...
         
-        // Verificar si el archivo ya existe para actualizar en lugar de crear
-        const existingFile = photos.find(photo => photo.name === fileName);
-        
-        const requestBody = {
-            message: commitMessage,
-            content: content,
-            branch: 'main'
-        };
-        
-        if (existingFile) {
-            // Si existe, necesitamos el SHA para actualizar
-            requestBody.sha = existingFile.id;
-        }
-        
-        const uploadResponse = await fetch(`${GITHUB_API}/${fileName}`, {
+        const response = await fetch(`${GITHUB_API}/${encodeURIComponent(fileName)}`, {
             method: 'PUT',
             headers: {
                 'Authorization': `token ${GITHUB_TOKEN}`,
                 'Content-Type': 'application/json',
                 'Accept': 'application/vnd.github.v3+json'
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify({
+                message: commitMessage,
+                content: content,
+                branch: 'main'
+            })
         });
         
-        if (!uploadResponse.ok) {
-            throw new Error('Error al subir la imagen a GitHub');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Error al subir la imagen');
         }
         
         // Recargar las fotos después de subir
@@ -138,20 +145,28 @@ async function uploadToGitHub(imageData, fileName) {
     } catch (error) {
         console.error("Error subiendo a GitHub:", error);
         
-        // Fallback a localStorage
-        const localPhoto = {
-            id: `local_${Date.now()}`,
-            url: imageData,
-            name: fileName,
-            timestamp: Date.now()
-        };
+        // Guardar localmente solo si es error de conexión
+        if (!navigator.onLine || error.message.includes("No hay conexión")) {
+            const localPhoto = {
+                id: `local_${Date.now()}`,
+                url: imageData,
+                name: fileName,
+                timestamp: Date.now()
+            };
+            
+            const localPhotos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
+            localPhotos.push(localPhoto);
+            localStorage.setItem('weddingPhotos', JSON.stringify(localPhotos));
+            
+            photos.unshift(localPhoto);
+            updateGallery();
+            
+            showNotification("Foto guardada localmente. Se subirá a GitHub cuando recuperes conexión.");
+            return false;
+        }
         
-        photos.unshift(localPhoto);
-        localStorage.setItem('weddingPhotos', JSON.stringify(photos));
-        updateGallery();
-        
-        showNotification("Foto guardada localmente. Se subirá a GitHub cuando recuperes conexión.");
-        return false;
+        showNotification("Error al subir la foto: " + error.message);
+        throw error;
     }
 }
 
@@ -175,7 +190,7 @@ async function compressImage(blob, quality = 0.8) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // Redimensionar si es muy grande (máximo 1200px en el lado más largo)
+            // Redimensionar si es muy grande (máximo 1200px)
             const MAX_SIZE = 1200;
             let width = img.width;
             let height = img.height;
@@ -199,7 +214,7 @@ async function compressImage(blob, quality = 0.8) {
             );
         };
         
-        img.onerror = () => resolve(blob); // Si falla, devolver el original
+        img.onerror = () => resolve(blob);
     });
 }
 
@@ -407,17 +422,29 @@ function showLoading(button, isLoading) {
 
 // Sincronizar fotos locales con GitHub
 async function syncLocalPhotos() {
+    if (!navigator.onLine) return;
+    
     const localPhotos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
+    const photosToRemove = [];
     
     for (const photo of localPhotos) {
         if (photo.id.startsWith('local_')) {
-            const success = await uploadToGitHub(photo.url, photo.name || `wedding-local-${Date.now()}.jpg`);
-            if (success) {
-                // Eliminar del localStorage si se subió correctamente
-                localStorage.setItem('weddingPhotos', 
-                    JSON.stringify(localPhotos.filter(p => p.id !== photo.id)))
+            try {
+                const success = await uploadToGitHub(photo.url, photo.name || `wedding-${Date.now()}.jpg`);
+                if (success) {
+                    photosToRemove.push(photo.id);
+                }
+            } catch (error) {
+                console.error("Error sincronizando foto local:", error);
             }
         }
+    }
+    
+    if (photosToRemove.length > 0) {
+        localStorage.setItem('weddingPhotos', 
+            JSON.stringify(localPhotos.filter(p => !photosToRemove.includes(p.id))));
+        
+        showNotification(`${photosToRemove.length} fotos locales sincronizadas con GitHub`);
     }
 }
 
