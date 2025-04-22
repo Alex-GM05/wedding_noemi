@@ -1,11 +1,12 @@
-// Configuración
-const DRIVE_API = "https://script.google.com/macros/s/AKfycbyvupaldTgV_r8jkQ5UEpJ3uFH0oTTLpHjl0NzLguj6UDkRJ6XRblj6Iwb7c8XfJVd1uQ/exec";
-const API_TOKEN = "weddingNJ2025";
-const DRIVE_FOLDER_ID = "1_hfqG2ys36SKUWzoFMP-O6oGD4WkUVfP";
+// Configuración GitHub
+const GITHUB_USERNAME = 'Alex-GM05'; // Reemplaza con tu usuario de GitHub
+const GITHUB_REPO = 'wedding_noemi'; // Reemplaza con tu repositorio
+const GITHUB_FOLDER = 'wedding images'; // Carpeta donde se guardarán las imágenes
+const GITHUB_API = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${GITHUB_FOLDER}`;
+const GITHUB_TOKEN = 'WEDDING_TOKEN'; // Usará el secret WEDDING_TOKEN
 
 let photos = [];
 let stream = null;
-let lastUpdateTime = 0;
 let refreshInterval;
 
 // Elementos del DOM
@@ -48,91 +49,100 @@ function setupEventListeners() {
     elements.submitUpload.addEventListener('click', uploadPhoto);
 }
 
-// Cargar fotos desde Drive
+// Cargar fotos desde GitHub
 async function loadPhotos() {
     try {
         showLoading(elements.viewPhotosBtn, true);
-        const response = await fetch(`${DRIVE_API}?action=getPhotos&token=${API_TOKEN}&folderId=${DRIVE_FOLDER_ID}&lastUpdate=${lastUpdateTime}`);
-        const data = await response.json();
         
-        if (data.success) {
-            if (data.lastUpdate > lastUpdateTime) {
-                lastUpdateTime = data.lastUpdate;
-                photos = data.photos.map(photo => ({
-                    ...photo,
-                    url: `https://lh3.googleusercontent.com/d/${photo.id}=w1000`
-                }));
-                updateGallery();
-                
-                if (elements.gallery.style.display === 'block') {
-                    showNotification("¡Nuevas fotos disponibles!");
-                }
+        const response = await fetch(GITHUB_API, {
+            headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json'
             }
-        } else {
-            throw new Error(data.message || "Error al cargar fotos");
-        }
+        });
+        
+        if (!response.ok) throw new Error("Error al cargar fotos desde GitHub");
+        
+        const files = await response.json();
+        
+        // Filtrar solo archivos de imagen
+        photos = files
+            .filter(file => file.type === "file" && file.name.match(/\.(jpg|jpeg|png|webp)$/i))
+            .map(file => ({
+                id: file.sha,
+                url: file.download_url,
+                name: file.name,
+                timestamp: new Date(file.commit.author.date).getTime()
+            }));
+        
+        updateGallery();
+        
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Error cargando fotos:", error);
         photos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
         updateGallery();
+        showNotification("Error al cargar fotos. Mostrando copias locales.");
     } finally {
         showLoading(elements.viewPhotosBtn, false);
     }
 }
 
-// Función para mostrar notificaciones
-function showNotification(message) {
-    const notification = document.createElement('div');
-    notification.className = 'notification';
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.classList.add('fade-out');
-        setTimeout(() => notification.remove(), 500);
-    }, 3000);
-}
-
-// Subir foto a Drive
-async function uploadToDrive(imageData) {
+// Subir foto a GitHub
+async function uploadToGitHub(imageData, fileName) {
     try {
-        showLoading(elements.submitUpload, true);
-        
-        // 1. Convertir a Blob
+        // Convertir data URL a Blob
         const blob = await (await fetch(imageData)).blob();
         
-        // 2. Optimizar imagen (reducir tamaño)
+        // Optimizar imagen antes de subir
         const optimizedBlob = await compressImage(blob);
         
-        // 3. Crear FormData
-        const formData = new FormData();
-        formData.append('file', optimizedBlob, `boda_${Date.now()}.jpg`);
+        // Leer como base64
+        const base64data = await blobToBase64(optimizedBlob);
         
-        // 4. Configurar opciones de fetch
-        const options = {
-            method: 'POST',
-            body: formData,
-            // No incluir headers 'Content-Type' para FormData
-            mode: 'no-cors' // Solo si persisten errores CORS
+        // Configurar el commit
+        const commitMessage = `Añadir foto de boda: ${fileName}`;
+        const content = base64data.split(',')[1]; // Remover el prefijo data:image/...
+        
+        // Verificar si el archivo ya existe para actualizar en lugar de crear
+        const existingFile = photos.find(photo => photo.name === fileName);
+        
+        const requestBody = {
+            message: commitMessage,
+            content: content,
+            branch: 'main'
         };
         
-        // 5. Subir a Drive
-        const response = await fetch(`${DRIVE_API}?action=upload&token=${API_TOKEN}&folderId=${DRIVE_FOLDER_ID}`, options);
+        if (existingFile) {
+            // Si existe, necesitamos el SHA para actualizar
+            requestBody.sha = existingFile.id;
+        }
         
-        // Verificar respuesta aunque sea no-cors
-        if (!response.ok) throw new Error('Error en la respuesta del servidor');
+        const uploadResponse = await fetch(`${GITHUB_API}/${fileName}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/vnd.github.v3+json'
+            },
+            body: JSON.stringify(requestBody)
+        });
         
-        // 6. Forzar recarga de fotos
+        if (!uploadResponse.ok) {
+            throw new Error('Error al subir la imagen a GitHub');
+        }
+        
+        // Recargar las fotos después de subir
         await loadPhotos();
         return true;
         
     } catch (error) {
-        console.error("Error subiendo a Drive:", error);
+        console.error("Error subiendo a GitHub:", error);
         
         // Fallback a localStorage
         const localPhoto = {
             id: `local_${Date.now()}`,
             url: imageData,
+            name: fileName,
             timestamp: Date.now()
         };
         
@@ -140,12 +150,57 @@ async function uploadToDrive(imageData) {
         localStorage.setItem('weddingPhotos', JSON.stringify(photos));
         updateGallery();
         
-        // Mostrar alerta específica
-        alert("Foto guardada localmente. Se subirá a Drive cuando recuperes conexión.");
+        showNotification("Foto guardada localmente. Se subirá a GitHub cuando recuperes conexión.");
         return false;
-    } finally {
-        showLoading(elements.submitUpload, false);
     }
+}
+
+// Convertir Blob a Base64
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+// Optimizar/Comprimir imagen
+async function compressImage(blob, quality = 0.8) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(blob);
+        
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Redimensionar si es muy grande (máximo 1200px en el lado más largo)
+            const MAX_SIZE = 1200;
+            let width = img.width;
+            let height = img.height;
+            
+            if (width > height && width > MAX_SIZE) {
+                height *= MAX_SIZE / width;
+                width = MAX_SIZE;
+            } else if (height > MAX_SIZE) {
+                width *= MAX_SIZE / height;
+                height = MAX_SIZE;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            canvas.toBlob(
+                (compressedBlob) => resolve(compressedBlob || blob),
+                'image/jpeg',
+                quality
+            );
+        };
+        
+        img.onerror = () => resolve(blob); // Si falla, devolver el original
+    });
 }
 
 // Funciones de la cámara
@@ -198,7 +253,8 @@ function capturePhoto() {
         context.drawImage(elements.cameraPreview, 0, 0, elements.photoCanvas.width, elements.photoCanvas.height);
         
         const imageData = elements.photoCanvas.toDataURL('image/jpeg', 0.85);
-        uploadToDrive(imageData);
+        const fileName = `wedding-${Date.now()}.jpg`;
+        uploadToGitHub(imageData, fileName);
         
     } catch (error) {
         console.error("Error al capturar foto:", error);
@@ -229,6 +285,9 @@ function updateGallery() {
         return;
     }
     
+    // Ordenar por fecha (más recientes primero)
+    photos.sort((a, b) => b.timestamp - a.timestamp);
+    
     photos.forEach(photo => {
         const photoItem = document.createElement('div');
         photoItem.className = 'photo-item';
@@ -245,7 +304,7 @@ function updateGallery() {
         downloadBtn.className = 'download-btn';
         downloadBtn.innerHTML = '↓';
         downloadBtn.title = 'Descargar foto';
-        downloadBtn.addEventListener('click', () => downloadPhoto(photo.url, `boda_${photo.id}.jpg`));
+        downloadBtn.addEventListener('click', () => downloadPhoto(photo.url, photo.name || `wedding-photo-${photo.id}.jpg`));
         
         photoItem.appendChild(img);
         photoItem.appendChild(downloadBtn);
@@ -256,7 +315,7 @@ function updateGallery() {
 // Auto-refresco
 function startAutoRefresh() {
     stopAutoRefresh();
-    refreshInterval = setInterval(loadPhotos, 10000); // Actualizar cada 10 segundos
+    refreshInterval = setInterval(loadPhotos, 30000); // Actualizar cada 30 segundos
 }
 
 function stopAutoRefresh() {
@@ -307,16 +366,32 @@ async function uploadPhoto() {
     if (!elements.uploadPreview.src || elements.submitUpload.disabled) return;
     
     try {
-        await uploadToDrive(elements.uploadPreview.src);
+        const fileName = `wedding-upload-${Date.now()}.jpg`;
+        await uploadToGitHub(elements.uploadPreview.src, fileName);
+        
         elements.uploadModal.style.display = 'none';
         elements.uploadPreview.src = '';
         elements.uploadPreview.style.display = 'none';
         elements.submitUpload.disabled = true;
         elements.fileInput.value = '';
+        
     } catch (error) {
         console.error("Error al subir foto:", error);
         alert("Error al subir la foto: " + error.message);
     }
+}
+
+// Función para mostrar notificaciones
+function showNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('fade-out');
+        setTimeout(() => notification.remove(), 500);
+    }, 3000);
 }
 
 // Utilidades
@@ -330,24 +405,25 @@ function showLoading(button, isLoading) {
     }
 }
 
-// Nueva función para sincronizar fotos locales
+// Sincronizar fotos locales con GitHub
 async function syncLocalPhotos() {
     const localPhotos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
     
     for (const photo of localPhotos) {
-      if (photo.id.startsWith('local_')) {
-        const success = await uploadToDrive(photo.url);
-        if (success) {
-          // Eliminar del localStorage si se subió correctamente
-          localStorage.setItem('weddingPhotos', JSON.stringify(localPhotos.filter(p => p.id !== photo.id)))
+        if (photo.id.startsWith('local_')) {
+            const success = await uploadToGitHub(photo.url, photo.name || `wedding-local-${Date.now()}.jpg`);
+            if (success) {
+                // Eliminar del localStorage si se subió correctamente
+                localStorage.setItem('weddingPhotos', 
+                    JSON.stringify(localPhotos.filter(p => p.id !== photo.id)))
+            }
         }
-      }
     }
-  }
-  
-  // Llamar al cargar y periódicamente
-  setInterval(syncLocalPhotos, 30000); // Cada 30 segundos
-  document.addEventListener('DOMContentLoaded', syncLocalPhotos);
+}
+
+// Llamar al cargar y periódicamente
+setInterval(syncLocalPhotos, 60000); // Cada 60 segundos
+document.addEventListener('DOMContentLoaded', syncLocalPhotos);
 
 function downloadPhoto(url, filename) {
     const link = document.createElement('a');
