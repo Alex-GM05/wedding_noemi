@@ -60,7 +60,7 @@ async function startCamera() {
     
     const constraints = {
       video: {
-        facingMode: 'environment',
+        facingMode: 'environment', // Prioriza cámara trasera
         width: { ideal: 1280 },
         height: { ideal: 720 }
       },
@@ -68,16 +68,17 @@ async function startCamera() {
     };
     
     cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+    
+    // Deshabilitar cualquier transformación automática del navegador
+    elements.cameraPreview.style.transform = 'none';
+    elements.cameraPreview.mirrored = false; // Algunos navegadores soportan esto
     elements.cameraPreview.srcObject = cameraStream;
     
     await new Promise((resolve) => {
       elements.cameraPreview.onloadedmetadata = resolve;
     });
     
-    await elements.cameraPreview.play().catch(e => {
-      console.error("Error al reproducir video:", e);
-      throw new Error("No se pudo iniciar la cámara");
-    });
+    await elements.cameraPreview.play();
     
   } catch (error) {
     console.error("Error al acceder a la cámara:", error);
@@ -96,7 +97,12 @@ async function startCamera() {
         };
         
         cameraStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        
+        // Forzar desactivación del espejo para cámara frontal
+        elements.cameraPreview.style.transform = 'none';
+        elements.cameraPreview.mirrored = false;
         elements.cameraPreview.srcObject = cameraStream;
+        
         await elements.cameraPreview.play();
       } catch (fallbackError) {
         console.error("Error con cámara frontal:", fallbackError);
@@ -275,12 +281,21 @@ function setupEventListeners() {
     elements.photoCanvas.width = elements.cameraPreview.videoWidth;
     elements.photoCanvas.height = elements.cameraPreview.videoHeight;
     
-   /* if (cameraStream && cameraStream.getVideoTracks()[0].getSettings().facingMode === 'user') {
-      context.translate(elements.photoCanvas.width, 0);
-      context.scale(1, 1);
-    }
-    */
+    // Dibujar la imagen directamente sin transformaciones
     context.drawImage(elements.cameraPreview, 0, 0, elements.photoCanvas.width, elements.photoCanvas.height);
+    
+    // Opcional: Corregir orientación EXIF si es necesario
+    if (cameraStream?.getVideoTracks()[0]?.getSettings()?.facingMode === 'user') {
+      // Algunos dispositivos necesitan rotación en lugar de espejo
+      context.clearRect(0, 0, elements.photoCanvas.width, elements.photoCanvas.height);
+      context.save();
+      context.translate(elements.photoCanvas.width, 0);
+      context.scale(-1, 1);
+      context.drawImage(elements.cameraPreview, 0, 0, elements.photoCanvas.width, elements.photoCanvas.height);
+      context.restore();
+    } else {
+      context.drawImage(elements.cameraPreview, 0, 0, elements.photoCanvas.width, elements.photoCanvas.height);
+    }
     
     elements.photoCanvas.toBlob(blob => {
       if (blob) {

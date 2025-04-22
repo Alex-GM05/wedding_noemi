@@ -213,8 +213,10 @@ h2 {
     width: 100%;
     max-height: 400px;
     display: block;
-    /*transform: scaleX(0); /* Efecto espejo */
-}
+    /* Asegurarse de que no hay transformaciones */
+    transform: none !important;
+    -webkit-transform: none !important;
+  }
 
 .capture-btn {
     background-color: #9e6b55;
