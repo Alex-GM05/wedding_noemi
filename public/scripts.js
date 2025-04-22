@@ -15,9 +15,7 @@ const db = firebase.firestore();
 const storage = firebase.storage();
 
 // Autenticación anónima
-auth.signInAnonymously().catch((error) => {
-  console.error("Error en autenticación anónima:", error);
-});
+auth.signInAnonymously().catch(console.error);
 
 // Elementos del DOM
 const cameraBtn = document.getElementById("cameraBtn");
@@ -58,22 +56,11 @@ function closeModal(modal) {
 // Cámara
 async function startCamera() {
   try {
-    let stream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: "environment" } }
-      });
-    } catch (e) {
-      console.warn("No se pudo acceder a la cámara trasera. Usando predeterminada.");
-      stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    }
-
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     video.srcObject = stream;
-    video.setAttribute("playsinline", true);
-    video.play();
   } catch (error) {
     showNotification("Error al acceder a la cámara.");
-    console.error("startCamera error:", error);
+    console.error(error);
   }
 }
 
@@ -93,14 +80,10 @@ captureBtn.addEventListener("click", () => {
 
   canvas.toBlob(blob => {
     if (blob) {
-      console.log("Foto capturada desde cámara, subiendo...");
       uploadImage(blob);
       closeModal(cameraModal);
-    } else {
-      showNotification("No se pudo capturar la foto.");
-      console.error("Error al convertir canvas a blob");
     }
-  }, "image/jpeg", 0.95);
+  }, "image/jpeg");
 });
 
 // Subir desde galería
@@ -120,7 +103,6 @@ fileInput.addEventListener("change", () => {
 submitUpload.addEventListener("click", () => {
   const file = fileInput.files[0];
   if (file) {
-    console.log("Foto seleccionada desde galería, subiendo...");
     uploadImage(file);
     closeModal(uploadModal);
   }
@@ -134,26 +116,21 @@ function uploadImage(file) {
   const uploadTask = ref.put(file);
   showNotification("Subiendo foto...");
 
-  uploadTask.then(snapshot => {
-    console.log("Archivo subido, obteniendo URL...");
-    return snapshot.ref.getDownloadURL();
-  })
-  .then(url => {
-    console.log("URL obtenida:", url);
-    return db.collection("photos").add({
-      url,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  uploadTask.then(snapshot => snapshot.ref.getDownloadURL())
+    .then(url => {
+      return db.collection("photos").add({
+        url,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    })
+    .then(() => {
+      showNotification("Foto subida exitosamente.");
+      loadPhotos();
+    })
+    .catch(error => {
+      console.error("Error al subir la imagen:", error);
+      showNotification("Error al subir la imagen.");
     });
-  })
-  .then(() => {
-    console.log("Imagen subida y guardada en Firestore.");
-    showNotification("Foto subida exitosamente.");
-    loadPhotos();
-  })
-  .catch(error => {
-    console.error("Error al subir la imagen:", error);
-    showNotification("Error al subir la imagen.");
-  });
 }
 
 // Galería
