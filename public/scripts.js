@@ -15,7 +15,9 @@ const db = firebase.firestore();
 const storage = firebase.storage();
 
 // Autenticación anónima
-auth.signInAnonymously().catch(console.error);
+auth.signInAnonymously().catch((error) => {
+  console.error("Error en autenticación anónima:", error);
+});
 
 // Elementos del DOM
 const cameraBtn = document.getElementById("cameraBtn");
@@ -56,11 +58,22 @@ function closeModal(modal) {
 // Cámara
 async function startCamera() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" } }
+      });
+    } catch (e) {
+      console.warn("No se pudo acceder a la cámara trasera. Usando predeterminada.");
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    }
+
     video.srcObject = stream;
+    video.setAttribute("playsinline", true);
+    video.play();
   } catch (error) {
     showNotification("Error al acceder a la cámara.");
-    console.error(error);
+    console.error("startCamera error:", error);
   }
 }
 
@@ -80,10 +93,14 @@ captureBtn.addEventListener("click", () => {
 
   canvas.toBlob(blob => {
     if (blob) {
+      console.log("Foto capturada desde cámara, subiendo...");
       uploadImage(blob);
       closeModal(cameraModal);
+    } else {
+      showNotification("No se pudo capturar la foto.");
+      console.error("Error al convertir canvas a blob");
     }
-  }, "image/jpeg");
+  }, "image/jpeg", 0.95);
 });
 
 // Subir desde galería
@@ -103,6 +120,7 @@ fileInput.addEventListener("change", () => {
 submitUpload.addEventListener("click", () => {
   const file = fileInput.files[0];
   if (file) {
+    console.log("Foto seleccionada desde galería, subiendo...");
     uploadImage(file);
     closeModal(uploadModal);
   }
@@ -124,6 +142,7 @@ function uploadImage(file) {
       });
     })
     .then(() => {
+      console.log("Imagen subida exitosamente.");
       showNotification("Foto subida exitosamente.");
       loadPhotos();
     })
