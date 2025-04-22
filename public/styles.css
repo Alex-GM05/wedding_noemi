@@ -18,26 +18,31 @@ body {
 }
 
 .overlay {
-    background-color: rgba(255, 255, 255, 0.85);
+    background-color: rgba(255, 255, 255, 0.92);
     padding: 40px;
     border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     max-width: 800px;
     width: 90%;
+    backdrop-filter: blur(5px);
+}
+
+h1, h2 {
+    margin: 0;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 h1 {
     font-family: 'Great Vibes', cursive;
     font-size: 3.5rem;
-    margin: 0 0 10px 0;
+    margin-bottom: 10px;
     color: #9e6b55;
-    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 h2 {
     font-family: 'Great Vibes', cursive;
     font-size: 2.8rem;
-    margin: 10px 0 30px 0;
+    margin: 10px 0 30px;
     color: #b88b7d;
 }
 
@@ -60,6 +65,10 @@ h2 {
     transition: all 0.3s ease;
     font-family: 'Playfair Display', serif;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
 }
 
 .btn:hover {
@@ -70,6 +79,10 @@ h2 {
 
 .btn:active {
     transform: translateY(1px);
+}
+
+.btn-icon {
+    font-size: 1.3rem;
 }
 
 .back-btn {
@@ -97,6 +110,11 @@ h2 {
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     height: 200px;
+    transition: transform 0.3s ease;
+}
+
+.photo-item:hover {
+    transform: scale(1.03);
 }
 
 .photo-item img {
@@ -106,35 +124,35 @@ h2 {
     transition: transform 0.3s ease;
 }
 
-.photo-item:hover img {
-    transform: scale(1.05);
-}
-
 .download-btn {
     position: absolute;
     bottom: 10px;
     right: 10px;
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: rgba(255, 255, 255, 0.9);
     border: none;
     border-radius: 50%;
-    width: 30px;
-    height: 30px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.3s ease;
+    text-decoration: none;
+    color: #5a4a42;
+    font-size: 1.2rem;
 }
 
 .photo-item:hover .download-btn {
     opacity: 1;
 }
 
-.no-photos {
+.no-photos, .loading-gallery, .error-gallery {
     color: #9e6b55;
     font-style: italic;
     padding: 20px;
+    grid-column: 1 / -1;
 }
 
 /* Modales */
@@ -159,6 +177,8 @@ h2 {
     max-width: 500px;
     text-align: center;
     position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .close-btn {
@@ -189,6 +209,7 @@ h2 {
     width: 100%;
     max-height: 400px;
     display: block;
+    transform: scaleX(-1); /* Efecto espejo */
 }
 
 .capture-btn {
@@ -208,6 +229,8 @@ h2 {
     transition: all 0.3s;
     margin: 15px 0;
     font-size: 1.1rem;
+    border: none;
+    width: auto;
 }
 
 .upload-label:hover {
@@ -297,5 +320,10 @@ h2 {
     
     .photo-grid {
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+    
+    .modal-content {
+        width: 95%;
+        padding: 15px;
     }
 }
