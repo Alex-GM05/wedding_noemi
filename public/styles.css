@@ -139,9 +139,13 @@ h2 {
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.3s ease;
-    text-decoration: none;
     color: #5a4a42;
     font-size: 1.2rem;
+    padding: 0;
+}
+
+.download-btn:hover {
+    background-color: rgba(255, 255, 255, 1);
 }
 
 .photo-item:hover .download-btn {

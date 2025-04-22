@@ -216,30 +216,36 @@ function renderPhotos(querySnapshot) {
   let photosHTML = '';
   querySnapshot.forEach((doc) => {
     const { url, fileName } = doc.data();
+    const safeFileName = fileName || 'foto-boda.jpg';
+    
     photosHTML += `
       <div class="photo-item">
         <img src="${url}" alt="Foto de boda" loading="lazy" crossorigin="anonymous">
-        <a href="${url}" download="${fileName || 'foto-boda.jpg'}" class="download-btn" title="Descargar">⬇️</a>
+        <button class="download-btn" data-url="${url}" data-filename="${safeFileName}" title="Descargar">⬇️</button>
       </div>
     `;
   });
   
   elements.photoGrid.innerHTML = photosHTML;
+  setupDownloadButtons(); // Añadir esta línea
 }
 
 function renderLocalPhotos(localPhotos) {
   let localHTML = '';
   localPhotos.forEach(photo => {
+    const safeFileName = photo.fileName || 'foto-local.jpg';
+    
     localHTML += `
       <div class="photo-item local-photo">
         <img src="${photo.url}" alt="Foto local" loading="lazy">
         <span class="local-badge">Local</span>
-        <a href="${photo.url}" download="${photo.fileName || 'foto-local.jpg'}" class="download-btn" title="Descargar">⬇️</a>
+        <button class="download-btn" data-url="${photo.url}" data-filename="${safeFileName}" title="Descargar">⬇️</button>
       </div>
     `;
   });
   
   elements.photoGrid.insertAdjacentHTML('beforeend', localHTML);
+  setupDownloadButtons(); // Añadir esta línea
 }
 
 // Event Listeners
@@ -367,6 +373,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     showNotification("Error al iniciar la aplicación");
   }
 });
+
+function setupDownloadButtons() {
+  document.querySelectorAll('.download-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const imageUrl = this.getAttribute('data-url');
+      const fileName = this.getAttribute('data-filename');
+      
+      showNotification("Preparando descarga...");
+      
+      try {
+        // Para imágenes de Firebase
+        if (imageUrl.includes('firebasestorage.googleapis.com')) {
+          // Obtener el token si es necesario
+          let downloadUrl = imageUrl;
+          if (!imageUrl.includes('token=')) {
+            const storageRef = storage.refFromURL(imageUrl);
+            downloadUrl = await storageRef.getDownloadURL();
+          }
+          forceDownload(downloadUrl, fileName);
+        } 
+        // Para imágenes locales
+        else {
+          forceDownload(imageUrl, fileName);
+        }
+      } catch (error) {
+        console.error("Error al descargar:", error);
+        showNotification("Error al descargar la foto");
+      }
+    });
+  });
+}
+
+// Función para forzar la descarga
+function forceDownload(url, filename) {
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.target = '_blank';
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  
+  // Liberar memoria para URLs de objetos
+  if (url.startsWith('blob:')) {
+    URL.revokeObjectURL(url);
+  }
+}
 
 function openModal(modal) {
   modal.style.display = "flex";
