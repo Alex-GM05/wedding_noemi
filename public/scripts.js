@@ -9,7 +9,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyD1aQZuIhcg7H4nzrA9cR-g_aFML98Tfwg",
   authDomain: "wedding-noemi-a30fe.firebaseapp.com",
   projectId: "wedding-noemi-a30fe",
-  storageBucket: "wedding-noemi-a30fe.appspot.com",
+  storageBucket: "wedding-noemi-a30fe.firebasestorage.app",
   messagingSenderId: "540796399199",
   appId: "1:540796399199:web:ad88e3323aea8fa6ea35ea"
 };
