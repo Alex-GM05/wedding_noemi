@@ -1,9 +1,9 @@
 // Configuración GitHub
 const GITHUB_USERNAME = 'Alex-GM05';
 const GITHUB_REPO = 'wedding_noemi';
-const GITHUB_FOLDER = 'wedding images';
+const GITHUB_FOLDER = 'wedding-images';
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${encodeURIComponent(GITHUB_FOLDER)}`;
-const GITHUB_TOKEN = 'WEDDING_TOKEN'; // Usará el secret WEDDING_TOKEN
+const GITHUB_TOKEN = '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'; // Usará el secret WEDDING_TOKEN
 
 let photos = [];
 let stream = null;
