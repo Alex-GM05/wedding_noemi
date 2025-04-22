@@ -10,7 +10,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-
 </head>
 <body>
     <div class="overlay">
@@ -23,15 +22,15 @@
             <button class="btn" id="viewPhotosBtn">Revive el momento</button>
         </div>
         
-        <div id="gallery">
+        <div id="gallery" style="display: none;">
             <h2>Nuestros Recuerdos</h2>
             <div class="photo-grid" id="photoGrid"></div>
-            <button class="btn back-btn" id="backFromGalleryBtn">Volver</button>
+            <button class="btn back-btn" id="backBtn">Volver</button>
         </div>
     </div>
 
     <!-- Modal Cámara -->
-    <div id="cameraModal" class="modal">
+    <div id="cameraModal" class="modal" style="display: none;">
         <div class="modal-content">
             <span class="close-btn">&times;</span>
             <h2>Tomar foto</h2>
@@ -44,7 +43,7 @@
     </div>
 
     <!-- Modal Galería -->
-    <div id="uploadModal" class="modal">
+    <div id="uploadModal" class="modal" style="display: none;">
         <div class="modal-content">
             <span class="close-btn">&times;</span>
             <h2>Subir foto desde galería</h2>
