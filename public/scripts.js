@@ -125,17 +125,32 @@ async function uploadImage(fileBlob, fileName) {
   showNotification("Subiendo foto...");
   
   try {
+    // Verificar conexión a internet
+    if (!navigator.onLine) {
+      throw new Error("No hay conexión a internet");
+    }
+
     const filePath = `photos/${Date.now()}_${fileName.replace(/[^a-z0-9.]/gi, '_')}`;
     const storageRef = storage.ref(filePath);
     
     const metadata = {
-      contentType: 'image/jpeg',
+      contentType: fileBlob.type || 'image/jpeg',
       cacheControl: 'public, max-age=31536000'
     };
     
-    const snapshot = await storageRef.put(fileBlob, metadata);
+    // Mostrar progreso de subida
+    const uploadTask = storageRef.put(fileBlob, metadata);
+    
+    // Esperar a que complete la subida
+    const snapshot = await uploadTask;
     const downloadURL = await snapshot.ref.getDownloadURL();
     
+    // Verificar que la URL se obtuvo correctamente
+    if (!downloadURL) {
+      throw new Error("No se pudo obtener la URL de descarga");
+    }
+    
+    // Guardar en Firestore
     await db.collection('photos').add({
       url: downloadURL,
       fileName: fileName,
@@ -149,19 +164,28 @@ async function uploadImage(fileBlob, fileName) {
   } catch (error) {
     console.error("Error al subir:", error);
     
-    const localPhoto = {
-      id: `local_${Date.now()}`,
-      url: URL.createObjectURL(fileBlob),
-      fileName: fileName,
-      timestamp: Date.now()
-    };
-    
-    const localPhotos = JSON.parse(localStorage.getItem('localPhotos')) || [];
-    localPhotos.push(localPhoto);
-    localStorage.setItem('localPhotos', JSON.stringify(localPhotos));
-    
-    showNotification("Foto guardada localmente");
-    return false;
+    // Solo guardar localmente si es un error de red o de Firebase
+    if (error.code === 'storage/retry-limit-exceeded' || 
+        error.code === 'storage/network-request-failed' ||
+        error.message === 'No hay conexión a internet') {
+        
+      const localPhoto = {
+        id: `local_${Date.now()}`,
+        url: URL.createObjectURL(fileBlob),
+        fileName: fileName,
+        timestamp: Date.now()
+      };
+      
+      const localPhotos = JSON.parse(localStorage.getItem('localPhotos')) || [];
+      localPhotos.push(localPhoto);
+      localStorage.setItem('localPhotos', JSON.stringify(localPhotos));
+      
+      showNotification("Foto guardada localmente. Se subirá cuando tengas conexión.");
+      return false;
+    } else {
+      showNotification("Error al subir la foto: " + (error.message || error));
+      return false;
+    }
   }
 }
 
@@ -300,11 +324,42 @@ function setupEventListeners() {
   });
 }
 
-// Inicialización
+// Verificar y subir fotos locales al recuperar conexión
+function checkLocalPhotos() {
+  window.addEventListener('online', async () => {
+    const localPhotos = JSON.parse(localStorage.getItem('localPhotos')) || [];
+    if (localPhotos.length > 0) {
+      showNotification("Intentando subir fotos guardadas localmente...");
+      
+      for (let i = 0; i < localPhotos.length; i++) {
+        const photo = localPhotos[i];
+        try {
+          // Convertir la URL a Blob
+          const response = await fetch(photo.url);
+          const blob = await response.blob();
+          
+          // Intentar subir
+          const success = await uploadImage(blob, photo.fileName);
+          if (success) {
+            // Eliminar del localStorage si se subió correctamente
+            localPhotos.splice(i, 1);
+            i--; // Ajustar el índice después de eliminar
+            localStorage.setItem('localPhotos', JSON.stringify(localPhotos));
+          }
+        } catch (error) {
+          console.error("Error al subir foto local:", error);
+        }
+      }
+    }
+  });
+}
+
+// Llamar a esta función en la inicialización
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await auth.signInAnonymously();
     setupEventListeners();
+    checkLocalPhotos(); // <-- Añadir esta línea
     new Image().src = 'placeholder.jpg';
     console.log("Aplicación inicializada correctamente");
   } catch (error) {
