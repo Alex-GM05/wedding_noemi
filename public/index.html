@@ -16,9 +16,9 @@
     <h1>Una fecha inolvidable plasmada en fotos</h1>
     <h2>Noemí & Juan Jose</h2>
     <div id="mainButtons">
-      <button id="cameraBtn">Desde Cámara</button>
-      <button id="galleryBtn">Desde Galería</button>
-      <button id="viewPhotosBtn">Revive el momento</button>
+      <button id="cameraBtn" class="btn">Desde Cámara</button>
+      <button id="galleryBtn" class="btn">Desde Galería</button>
+      <button id="viewPhotosBtn" class="btn">Revive el momento</button>
     </div>
   </div>
 
@@ -26,7 +26,7 @@
   <div id="cameraSection" style="display:none;">
     <video id="cameraPreview" autoplay playsinline></video>
     <canvas id="photoCanvas" style="display:none;"></canvas>
-    <button id="captureBtn">Capturar Foto</button>
+    <button id="captureBtn" class="btn capture-btn">Capturar Foto</button>
   </div>
 
   <!-- Galería -->
@@ -35,8 +35,8 @@
   <!-- Galería de fotos -->
   <div id="photoGallery" style="display:none;">
     <h2>Galería</h2>
-    <div id="photoGrid"></div>
-    <button id="backBtn">Volver</button>
+    <div id="photoGrid" class="photo-grid"></div>
+    <button id="backBtn" class="btn back-btn">Volver</button>
   </div>
 
   <script src="scripts.js"></script>
