@@ -58,6 +58,8 @@ async function startCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     video.srcObject = stream;
+    video.setAttribute("playsinline", true);
+    video.play();
   } catch (error) {
     showNotification("Error al acceder a la cámara.");
     console.error(error);
@@ -83,7 +85,7 @@ captureBtn.addEventListener("click", () => {
       uploadImage(blob);
       closeModal(cameraModal);
     }
-  }, "image/jpeg");
+  }, "image/jpeg", 0.95);
 });
 
 // Subir desde galería
@@ -113,10 +115,10 @@ function uploadImage(file) {
   const filename = `photos/${Date.now()}_${Math.random().toString(36).substring(2, 15)}.jpg`;
   const ref = storage.ref().child(filename);
 
-  const uploadTask = ref.put(file);
   showNotification("Subiendo foto...");
 
-  uploadTask.then(snapshot => snapshot.ref.getDownloadURL())
+  ref.put(file)
+    .then(snapshot => snapshot.ref.getDownloadURL())
     .then(url => {
       return db.collection("photos").add({
         url,
