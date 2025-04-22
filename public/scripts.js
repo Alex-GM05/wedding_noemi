@@ -134,22 +134,26 @@ function uploadImage(file) {
   const uploadTask = ref.put(file);
   showNotification("Subiendo foto...");
 
-  uploadTask.then(snapshot => snapshot.ref.getDownloadURL())
-    .then(url => {
-      return db.collection("photos").add({
-        url,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    })
-    .then(() => {
-      console.log("Imagen subida exitosamente.");
-      showNotification("Foto subida exitosamente.");
-      loadPhotos();
-    })
-    .catch(error => {
-      console.error("Error al subir la imagen:", error);
-      showNotification("Error al subir la imagen.");
+  uploadTask.then(snapshot => {
+    console.log("Archivo subido, obteniendo URL...");
+    return snapshot.ref.getDownloadURL();
+  })
+  .then(url => {
+    console.log("URL obtenida:", url);
+    return db.collection("photos").add({
+      url,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
+  })
+  .then(() => {
+    console.log("Imagen subida y guardada en Firestore.");
+    showNotification("Foto subida exitosamente.");
+    loadPhotos();
+  })
+  .catch(error => {
+    console.error("Error al subir la imagen:", error);
+    showNotification("Error al subir la imagen.");
+  });
 }
 
 // Galería

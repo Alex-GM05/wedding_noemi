@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "wedding-noemi-a30fe"
-  }
+    "default": "wedding-noemi-a30fe",
+    "wedding": "wedding-noemi-a30fe"
+  },
+  "targets": {},
+  "etags": {}
 }
