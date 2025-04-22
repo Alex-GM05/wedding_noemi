@@ -275,11 +275,11 @@ function setupEventListeners() {
     elements.photoCanvas.width = elements.cameraPreview.videoWidth;
     elements.photoCanvas.height = elements.cameraPreview.videoHeight;
     
-    if (cameraStream && cameraStream.getVideoTracks()[0].getSettings().facingMode === 'user') {
+   /* if (cameraStream && cameraStream.getVideoTracks()[0].getSettings().facingMode === 'user') {
       context.translate(elements.photoCanvas.width, 0);
       context.scale(-1, 1);
     }
-    
+    */
     context.drawImage(elements.cameraPreview, 0, 0, elements.photoCanvas.width, elements.photoCanvas.height);
     
     elements.photoCanvas.toBlob(blob => {
