@@ -98,33 +98,51 @@ async function uploadToDrive(imageData) {
     try {
         showLoading(elements.submitUpload, true);
         
+        // 1. Convertir a Blob
         const blob = await (await fetch(imageData)).blob();
+        
+        // 2. Optimizar imagen (reducir tamaño)
+        const optimizedBlob = await compressImage(blob);
+        
+        // 3. Crear FormData
         const formData = new FormData();
-        formData.append('file', blob);
-        formData.append('folderId', DRIVE_FOLDER_ID);
+        formData.append('file', optimizedBlob, `boda_${Date.now()}.jpg`);
         
-        const response = await fetch(`${DRIVE_API}?action=upload&token=${API_TOKEN}`, {
+        // 4. Configurar opciones de fetch
+        const options = {
             method: 'POST',
-            body: formData
-        });
+            body: formData,
+            // No incluir headers 'Content-Type' para FormData
+            mode: 'no-cors' // Solo si persisten errores CORS
+        };
         
-        const result = await response.json();
+        // 5. Subir a Drive
+        const response = await fetch(`${DRIVE_API}?action=upload&token=${API_TOKEN}&folderId=${DRIVE_FOLDER_ID}`, options);
         
-        if (result.success) {
-            await loadPhotos(); // Recargar la lista completa
-        } else {
-            throw new Error(result.message || "Error al subir la foto");
-        }
+        // Verificar respuesta aunque sea no-cors
+        if (!response.ok) throw new Error('Error en la respuesta del servidor');
+        
+        // 6. Forzar recarga de fotos
+        await loadPhotos();
+        return true;
+        
     } catch (error) {
-        console.error("Error subiendo:", error);
+        console.error("Error subiendo a Drive:", error);
+        
         // Fallback a localStorage
-        photos.unshift({ 
-            url: imageData, 
-            id: `local_${Date.now()}` 
-        });
+        const localPhoto = {
+            id: `local_${Date.now()}`,
+            url: imageData,
+            timestamp: Date.now()
+        };
+        
+        photos.unshift(localPhoto);
         localStorage.setItem('weddingPhotos', JSON.stringify(photos));
         updateGallery();
-        alert("Se guardó localmente. Error al subir a Drive: " + error.message);
+        
+        // Mostrar alerta específica
+        alert("Foto guardada localmente. Se subirá a Drive cuando recuperes conexión.");
+        return false;
     } finally {
         showLoading(elements.submitUpload, false);
     }
@@ -311,6 +329,25 @@ function showLoading(button, isLoading) {
         button.textContent = button.dataset.originalText || button.textContent;
     }
 }
+
+// Nueva función para sincronizar fotos locales
+async function syncLocalPhotos() {
+    const localPhotos = JSON.parse(localStorage.getItem('weddingPhotos')) || [];
+    
+    for (const photo of localPhotos) {
+      if (photo.id.startsWith('local_')) {
+        const success = await uploadToDrive(photo.url);
+        if (success) {
+          // Eliminar del localStorage si se subió correctamente
+          localStorage.setItem('weddingPhotos', JSON.stringify(localPhotos.filter(p => p.id !== photo.id)))
+        }
+      }
+    }
+  }
+  
+  // Llamar al cargar y periódicamente
+  setInterval(syncLocalPhotos, 30000); // Cada 30 segundos
+  document.addEventListener('DOMContentLoaded', syncLocalPhotos);
 
 function downloadPhoto(url, filename) {
     const link = document.createElement('a');
