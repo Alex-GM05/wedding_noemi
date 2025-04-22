@@ -1,24 +1,18 @@
-// Importaciones para Firebase v9 Modular
-import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-
 // Configuración de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyD1aQZuIhcg7H4nzrA9cR-g_aFML98Tfwg",
   authDomain: "wedding-noemi-a30fe.firebaseapp.com",
   projectId: "wedding-noemi-a30fe",
-  storageBucket: "wedding-noemi-a30fe.firebasestorage.app",
+  storageBucket: "wedding-noemi-a30fe.appspot.com",
   messagingSenderId: "540796399199",
   appId: "1:540796399199:web:ad88e3323aea8fa6ea35ea"
 };
 
 // Inicializar Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const storage = firebase.storage();
 
 // Variables de estado
 let cameraStream = null;
@@ -55,7 +49,7 @@ function showNotification(message) {
   }, 3000);
 }
 
-// Funciones de la cámara (corregidas para móviles)
+// Funciones de la cámara
 async function startCamera() {
   try {
     elements.cameraModal.style.display = "flex";
@@ -64,7 +58,6 @@ async function startCamera() {
       cameraStream.getTracks().forEach(track => track.stop());
     }
     
-    // Configuración para priorizar cámara trasera
     const constraints = {
       video: {
         facingMode: 'environment',
@@ -74,16 +67,13 @@ async function startCamera() {
       audio: false
     };
     
-    // Solicitar permisos de cámara
     cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
     elements.cameraPreview.srcObject = cameraStream;
     
-    // Esperar a que el video esté listo
     await new Promise((resolve) => {
       elements.cameraPreview.onloadedmetadata = resolve;
     });
     
-    // Reproducir el stream de video
     await elements.cameraPreview.play().catch(e => {
       console.error("Error al reproducir video:", e);
       throw new Error("No se pudo iniciar la cámara");
@@ -94,7 +84,6 @@ async function startCamera() {
     showNotification("Por favor permite el acceso a la cámara");
     closeCamera();
     
-    // Intentar con cámara frontal si la trasera falla
     if (error.name === 'OverconstrainedError' || error.name === 'NotFoundError') {
       try {
         const fallbackConstraints = {
@@ -131,30 +120,26 @@ function closeCamera() {
   elements.cameraModal.style.display = "none";
 }
 
-// Funciones para subir imágenes (con manejo CORS)
+// Funciones para subir imágenes
 async function uploadImage(fileBlob, fileName) {
   showNotification("Subiendo foto...");
   
   try {
-    // Crear referencia única para el archivo
     const filePath = `photos/${Date.now()}_${fileName.replace(/[^a-z0-9.]/gi, '_')}`;
-    const storageRef = ref(storage, filePath);
+    const storageRef = storage.ref(filePath);
     
-    // Configurar metadatos
     const metadata = {
       contentType: 'image/jpeg',
       cacheControl: 'public, max-age=31536000'
     };
     
-    // Subir el archivo
-    const snapshot = await uploadBytes(storageRef, fileBlob, metadata);
-    const downloadURL = await getDownloadURL(snapshot.ref);
+    const snapshot = await storageRef.put(fileBlob, metadata);
+    const downloadURL = await snapshot.ref.getDownloadURL();
     
-    // Guardar metadatos en Firestore
     await db.collection('photos').add({
       url: downloadURL,
       fileName: fileName,
-      timestamp: new Date(),
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       uploadedBy: auth.currentUser?.uid || 'anonymous'
     });
     
@@ -164,7 +149,6 @@ async function uploadImage(fileBlob, fileName) {
   } catch (error) {
     console.error("Error al subir:", error);
     
-    // Fallback a localStorage
     const localPhoto = {
       id: `local_${Date.now()}`,
       url: URL.createObjectURL(fileBlob),
@@ -189,7 +173,6 @@ async function loadPhotos() {
     const querySnapshot = await db.collection("photos").orderBy("timestamp", "desc").get();
     renderPhotos(querySnapshot);
     
-    // Cargar fotos locales si hay
     const localPhotos = JSON.parse(localStorage.getItem('localPhotos')) || [];
     if (localPhotos.length > 0) {
       renderLocalPhotos(localPhotos);
@@ -237,7 +220,6 @@ function renderLocalPhotos(localPhotos) {
 
 // Event Listeners
 function setupEventListeners() {
-  // Botones principales
   elements.cameraBtn.addEventListener('click', async () => {
     openModal(elements.cameraModal);
     await startCamera();
@@ -258,13 +240,11 @@ function setupEventListeners() {
     elements.mainButtons.style.display = "flex";
   });
   
-  // Cámara
   elements.captureBtn.addEventListener('click', () => {
     const context = elements.photoCanvas.getContext('2d');
     elements.photoCanvas.width = elements.cameraPreview.videoWidth;
     elements.photoCanvas.height = elements.cameraPreview.videoHeight;
     
-    // Aplicar efecto espejo si es cámara frontal
     if (cameraStream && cameraStream.getVideoTracks()[0].getSettings().facingMode === 'user') {
       context.translate(elements.photoCanvas.width, 0);
       context.scale(-1, 1);
@@ -272,7 +252,6 @@ function setupEventListeners() {
     
     context.drawImage(elements.cameraPreview, 0, 0, elements.photoCanvas.width, elements.photoCanvas.height);
     
-    // Convertir a blob y subir
     elements.photoCanvas.toBlob(blob => {
       if (blob) {
         uploadImage(blob, `foto-${Date.now()}.jpg`);
@@ -281,7 +260,6 @@ function setupEventListeners() {
     }, 'image/jpeg', 0.85);
   });
   
-  // Galería
   elements.fileInput.addEventListener('change', () => {
     const file = elements.fileInput.files[0];
     if (file) {
@@ -314,7 +292,6 @@ function setupEventListeners() {
     }
   });
   
-  // Modales
   document.querySelectorAll('.close-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const modal = btn.closest('.modal');
@@ -323,18 +300,12 @@ function setupEventListeners() {
   });
 }
 
-// Inicialización de la aplicación
+// Inicialización
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    // Autenticación anónima
-    await signInAnonymously(auth);
-    
-    // Configurar event listeners
+    await auth.signInAnonymously();
     setupEventListeners();
-    
-    // Precargar recursos
     new Image().src = 'placeholder.jpg';
-    
     console.log("Aplicación inicializada correctamente");
   } catch (error) {
     console.error("Error inicializando la aplicación:", error);
@@ -342,12 +313,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// Función para abrir modales
 function openModal(modal) {
   modal.style.display = "flex";
 }
 
-// Función para cerrar modales
 function closeModal(modal) {
   modal.style.display = "none";
   if (modal === elements.cameraModal) stopCamera();
