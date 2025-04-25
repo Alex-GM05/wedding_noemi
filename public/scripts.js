@@ -378,13 +378,15 @@ function checkLocalPhotos() {
 // Llamar a esta función en la inicialización
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    // Espera a que complete la autenticación anónima
     await auth.signInAnonymously();
+    console.log("Usuario autenticado anónimamente:", auth.currentUser.uid);
+    
     setupEventListeners();
-    checkLocalPhotos(); // <-- Añadir esta línea
+    checkLocalPhotos();
     new Image().src = 'placeholder.jpg';
-    console.log("Aplicación inicializada correctamente");
   } catch (error) {
-    console.error("Error inicializando la aplicación:", error);
+    console.error("Error inicializando:", error);
     showNotification("Error al iniciar la aplicación");
   }
 });
